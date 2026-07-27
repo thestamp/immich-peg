@@ -31,6 +31,7 @@ public class SyncedAlbum
     public string PublicAlbumId { get; set; } = "";
     public string AlbumName { get; set; } = "";
     public int AssetCount { get; set; }
+    public int TotalAssets { get; set; }
     public string? LastSynced { get; set; }
 }
 

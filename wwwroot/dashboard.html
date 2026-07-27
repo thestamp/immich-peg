@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Immich Peg</title>
+<style>
+:root {
+  --bg: #0d1117; --bg-card: #161b22; --bg-input: #21262d; --border: #30363d;
+  --text: #c9d1d9; --text-dim: #8b949e; --accent: #58a6ff; --accent-hover: #79c0ff;
+  --green: #3fb950; --red: #f85149; --yellow: #d2991d; --radius: 8px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+nav { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; height: 56px; gap: 24px; }
+nav .logo { font-size: 18px; font-weight: 600; color: var(--text); text-decoration: none; }
+nav .logo span { color: var(--accent); }
+nav a { color: var(--text-dim); text-decoration: none; font-size: 14px; transition: color 0.2s; }
+nav a:hover, nav a.active { color: var(--text); }
+nav .spacer { flex: 1; }
+.container { width: 100%; max-width: 1000px; margin: 0 auto; padding: 24px; }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.metric { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.metric .label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.metric .value { font-size: 28px; font-weight: 600; }
+.metric .value.green { color: var(--green); }
+.metric .value.red { color: var(--red); }
+.metric .value.yellow { color: var(--yellow); }
+.metric .sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+.card h2 { font-size: 16px; margin-bottom: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.status-dot.ok { background: var(--green); }
+.status-dot.down { background: var(--red); }
+.status-dot.syncing { background: var(--yellow); animation: pulse 1s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-danger:hover { opacity: 0.8; }
+.btn-secondary { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--border); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.sync-status { font-size: 13px; color: var(--text-dim); margin-top: 8px; padding: 8px 12px; background: var(--bg-input); border-radius: 6px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--border); }
+th { color: var(--text-dim); font-weight: 500; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+td { color: var(--text); }
+.empty { text-align: center; padding: 32px; color: var(--text-dim); font-size: 14px; }
+.health-row { display: flex; gap: 16px; align-items: center; }
+.health-item { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+.badge.ok { background: rgba(63,185,80,0.15); color: var(--green); }
+.badge.warn { background: rgba(210,153,29,0.15); color: var(--yellow); }
+.badge.err { background: rgba(248,81,73,0.15); color: var(--red); }
+.hidden { display: none; }
+#notSetUp { text-align: center; padding: 60px 20px; }
+#notSetUp h2 { font-size: 22px; margin-bottom: 8px; }
+#notSetUp p { color: var(--text-dim); margin-bottom: 20px; }
+</style>
+</head>
+<body>
+<nav>
+  <a href="/" class="logo">🔄 <span>Immich Peg</span></a>
+  <a href="/dashboard.html" class="active">Dashboard</a>
+  <a href="/settings.html">Settings</a>
+  <div class="spacer"></div>
+</nav>
+
+<div class="container">
+  <!-- Not set up -->
+  <div class="hidden" id="notSetUp">
+    <h2>Not Configured</h2>
+    <p>Run the setup wizard to configure Immich Peg.</p>
+    <a href="/setup.html" class="btn btn-primary">Run Setup →</a>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="hidden" id="dashboard">
+    <!-- Health -->
+    <div class="card">
+      <h2>System Health <span id="healthIndicator"></span></h2>
+      <div class="health-row">
+        <div class="health-item"><span class="status-dot" id="dotMain"></span> Main: <strong id="healthMain">-</strong></div>
+        <div class="health-item"><span class="status-dot" id="dotPublic"></span> Public: <strong id="healthPublic">-</strong></div>
+        <span style="color:var(--text-dim);font-size:13px;margin-left:8px" id="healthLastCheck"></span>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="metrics" id="metrics">
+      <div class="metric"><div class="label">Shared Albums</div><div class="value" id="statShared">0</div></div>
+      <div class="metric"><div class="label">Synced Albums</div><div class="value" id="statSynced">0</div></div>
+      <div class="metric"><div class="label">Albums Synced Ever</div><div class="value" id="statSyncedEver">0</div></div>
+      <div class="metric"><div class="label">Assets Copied</div><div class="value" id="statAssets">0</div><div class="sub" id="statAlbumsRemoved"></div></div>
+    </div>
+
+    <!-- Sync Controls -->
+    <div class="card">
+      <h2>Sync Controls <span class="status-dot" id="syncDot"></span></h2>
+      <div class="sync-status" id="syncInfo">No sync running</div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btnPublish" onclick="startSync('publish')">📋 Publish Metadata</button>
+        <button class="btn btn-primary" id="btnAssets" onclick="startSync('assets')">📦 Copy Assets</button>
+        <button class="btn btn-danger" id="btnStop" onclick="stopSync()" disabled>⏹ Stop</button>
+      </div>
+    </div>
+
+    <!-- Albums -->
+    <div class="card">
+      <h2>Synced Albums</h2>
+      <div id="albumTable"></div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="card">
+      <h2>Recent Activity</h2>
+      <div id="recentTable"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const POLL_MS = 5000;
+let pollTimer;
+
+async function loadDashboard() {
+  try {
+    const r = await fetch('/api/dashboard');
+    if (!r.ok) throw new Error('API error');
+    const d = await r.json();
+
+    if (!d.setupComplete) {
+      document.getElementById('notSetUp').classList.remove('hidden');
+      document.getElementById('dashboard').classList.add('hidden');
+      return;
+    }
+
+    document.getElementById('notSetUp').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+
+    // Health
+    const mainOk = d.health?.main;
+    const pubOk = d.health?.public;
+    document.getElementById('healthMain').textContent = mainOk ? 'UP' : 'DOWN';
+    document.getElementById('healthPublic').textContent = pubOk ? 'UP' : 'DOWN';
+    document.getElementById('dotMain').className = 'status-dot ' + (mainOk ? 'ok' : 'down');
+    document.getElementById('dotPublic').className = 'status-dot ' + (pubOk ? 'ok' : 'down');
+    document.getElementById('healthLastCheck').textContent = d.lastSync ? new Date(d.lastSync).toLocaleString() : '';
+
+    // Stats
+    document.getElementById('statShared').textContent = d.totalSharedAlbums || 0;
+    document.getElementById('statSynced').textContent = d.totalSyncedAlbums || 0;
+    document.getElementById('statSyncedEver').textContent = d.totalAlbumsSyncedEver || 0;
+    document.getElementById('statAssets').textContent = d.totalAssetsCopiedEver || 0;
+    document.getElementById('statAlbumsRemoved').textContent = (d.totalAlbumsRemovedEver || 0) + ' removed';
+
+    // Sync status
+    const syncing = d.syncActive;
+    document.getElementById('syncDot').className = 'status-dot ' + (syncing ? 'syncing' : 'ok');
+    document.getElementById('syncInfo').textContent = syncing
+      ? 'Sync in progress...'
+      : (d.lastSyncStatus === 'never' ? 'No sync run yet' : 'Last sync: ' + d.lastSyncStatus + ' — ' + (d.lastSyncMessage || ''));
+    document.getElementById('btnPublish').disabled = syncing;
+    document.getElementById('btnAssets').disabled = syncing;
+    document.getElementById('btnStop').disabled = !syncing;
+
+    // Albums table
+    const albums = d.syncedAlbums || [];
+    if (albums.length === 0) {
+      document.getElementById('albumTable').innerHTML = '<div class="empty">No albums synced yet</div>';
+    } else {
+      document.getElementById('albumTable').innerHTML = `<table>
+        <tr><th>Album</th><th>Assets</th><th>Last Synced</th></tr>
+        ${albums.map(a => `<tr><td>${esc(a.albumName)}</td><td>${a.assetCount}/${a.totalAssets || a.assetCount}</td><td>${a.lastSynced ? new Date(a.lastSynced).toLocaleString() : '—'}</td></tr>`).join('')}
+      </table>`;
+    }
+
+    // Recent activity
+    const recent = d.recentAssets || [];
+    if (recent.length === 0) {
+      document.getElementById('recentTable').innerHTML = '<div class="empty">No recent activity</div>';
+    } else {
+      document.getElementById('recentTable').innerHTML = `<table>
+        <tr><th>File</th><th>Album</th><th>Time</th></tr>
+        ${recent.slice(0, 10).map(a => `<tr><td>${esc(a.filename)}</td><td>${esc(a.albumName)}</td><td>${new Date(a.timestamp).toLocaleString()}</td></tr>`).join('')}
+      </table>`;
+    }
+  } catch(e) {
+    document.getElementById('notSetUp').classList.remove('hidden');
+    document.getElementById('notSetUp').innerHTML = '<h2>Connection Error</h2><p>' + esc(e.message) + '</p><button class="btn btn-primary" onclick="loadDashboard()">Retry</button>';
+  }
+}
+
+function esc(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+async function startSync(action) {
+  const btn = document.getElementById(action === 'publish' ? 'btnPublish' : 'btnAssets');
+  btn.disabled = true;
+  try {
+    await fetch('/api/sync/' + action, { method: 'POST' });
+  } catch(e) {}
+  setTimeout(loadDashboard, 1000);
+}
+
+async function stopSync() {
+  try {
+    await fetch('/api/sync/stop', { method: 'POST' });
+  } catch(e) {}
+  setTimeout(loadDashboard, 1000);
+}
+
+loadDashboard();
+pollTimer = setInterval(loadDashboard, POLL_MS);
+</script>
+</body>
+</html>

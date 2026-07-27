@@ -8,6 +8,13 @@ builder.Services.AddHostedService<SyncBackgroundService>();
 
 var app = builder.Build();
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
+static string MaskKey(string key) =>
+    string.IsNullOrEmpty(key) ? "" :
+    key.Length <= 8 ? new string('\u2022', key.Length) :
+    key[..4] + new string('\u2022', Math.Min(8, key.Length - 8)) + key[^4..];
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
@@ -101,6 +108,22 @@ app.MapPost("/api/reset", ([FromServices] SyncConfigService cfg) =>
 {
     cfg.Save(new ImmichPeg.Models.SyncConfig());
     return Results.Ok(new { success = true });
+});
+
+app.MapGet("/api/settings", (SyncConfigService cfg) =>
+{
+    var config = cfg.Load();
+    if (!config.SetupComplete) return Results.BadRequest(new { error = "Not set up" });
+    return Results.Ok(new
+    {
+        mainUrl = config.Main.Url,
+        publicUrl = config.Public.Url,
+        mainApiKey = MaskKey(config.Main.ApiKey),
+        publicApiKey = MaskKey(config.Public.ApiKey),
+        syncIntervalMinutes = config.SyncIntervalMinutes,
+        settingsEnabled = config.SettingsEnabled,
+        dashboardEnabled = config.DashboardEnabled
+    });
 });
 
 app.Run();

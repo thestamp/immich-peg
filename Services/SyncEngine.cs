@@ -193,7 +193,8 @@ public class SyncEngine
         {
             PublicAlbumId = publicAlbumId,
             AlbumName = albumName,
-            AssetCount = existing != null && int.TryParse(existing.GetValueOrDefault("asset_count", "0"), out var c) ? c : 0,
+            AssetCount = Config.SyncedAlbums.TryGetValue(albumId, out var existingAlbum) ? existingAlbum.AssetCount : 0,
+            TotalAssets = Config.SyncedAlbums.TryGetValue(albumId, out var existingAlbum2) ? existingAlbum2.TotalAssets : 0,
             LastSynced = DateTime.UtcNow.ToString("o")
         };
 
@@ -264,11 +265,21 @@ public class SyncEngine
             }
         }
 
+        // Re-fetch public album to get accurate synced count
+        var syncedCount = mainAssets.Count;
+        try
+        {
+            var finalPublicAssets = await _public.GetAlbumAssetsAsync(publicAlbumId);
+            syncedCount = finalPublicAssets.Count;
+        }
+        catch { }
+
         Config.SyncedAlbums[albumId] = new SyncedAlbum
         {
             PublicAlbumId = publicAlbumId,
             AlbumName = albumName,
-            AssetCount = mainAssets.Count,
+            AssetCount = syncedCount,
+            TotalAssets = mainAssets.Count,
             LastSynced = DateTime.UtcNow.ToString("o")
         };
 
