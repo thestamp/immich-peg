@@ -1,5 +1,6 @@
 using ImmichPeg.Models;
 using ImmichPeg.Services;
+using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<SyncConfigService>();

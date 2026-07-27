@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ImmichPeg")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c080b9d84ec7433bec3c7ac24561144cd2d8de8e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+607aaee4acee0930481ce53020c1164e2f8e4616")]
 [assembly: System.Reflection.AssemblyProductAttribute("ImmichPeg")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ImmichPeg")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
