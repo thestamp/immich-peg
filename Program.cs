@@ -10,7 +10,7 @@ var app = builder.Build();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
-app.MapGet("/api/dashboard", async (SyncConfigService cfg, SyncEngine? engine) =>
+app.MapGet("/api/dashboard", async (SyncConfigService cfg, [FromServices] SyncEngine? engine) =>
 {
     var config = cfg.Load();
     if (!config.SetupComplete) return Results.Ok(new { setupComplete = false });
@@ -21,7 +21,7 @@ app.MapGet("/api/dashboard", async (SyncConfigService cfg, SyncEngine? engine) =
     return Results.Ok(data);
 });
 
-app.MapPost("/api/sync/publish", async (SyncConfigService cfg, SyncEngine? engine) =>
+app.MapPost("/api/sync/publish", async (SyncConfigService cfg, [FromServices] SyncEngine? engine) =>
 {
     var config = cfg.Load();
     if (!config.SetupComplete) return Results.BadRequest(new { error = "Not set up" });
@@ -36,7 +36,7 @@ app.MapPost("/api/sync/publish", async (SyncConfigService cfg, SyncEngine? engin
     return Results.Ok(new { status = "started", action = "publish" });
 });
 
-app.MapPost("/api/sync/assets", async (SyncConfigService cfg, SyncEngine? engine) =>
+app.MapPost("/api/sync/assets", async (SyncConfigService cfg, [FromServices] SyncEngine? engine) =>
 {
     var config = cfg.Load();
     if (!config.SetupComplete) return Results.BadRequest(new { error = "Not set up" });
@@ -51,7 +51,7 @@ app.MapPost("/api/sync/assets", async (SyncConfigService cfg, SyncEngine? engine
     return Results.Ok(new { status = "started", action = "assets" });
 });
 
-app.MapPost("/api/sync/stop", (SyncConfigService cfg) =>
+app.MapPost("/api/sync/stop", ([FromServices] SyncConfigService cfg) =>
 {
     var engine = app.Services.GetService<SyncEngine>();
     if (engine?.IsRunning == true) { engine.Cancel(); return Results.Ok(new { status = "cancelled" }); }
@@ -59,7 +59,7 @@ app.MapPost("/api/sync/stop", (SyncConfigService cfg) =>
 });
 
 // Setup
-app.MapGet("/api/setup/status", (SyncConfigService cfg) =>
+app.MapGet("/api/setup/status", ([FromServices] SyncConfigService cfg) =>
 {
     var c = cfg.Load();
     return Results.Ok(new { setupComplete = c.SetupComplete });
@@ -96,7 +96,7 @@ app.MapPost("/api/settings", async (SyncConfigService cfg, SetupRequest req) =>
     return Results.Ok(new { success = true });
 });
 
-app.MapPost("/api/reset", (SyncConfigService cfg) =>
+app.MapPost("/api/reset", ([FromServices] SyncConfigService cfg) =>
 {
     cfg.Save(new ImmichPeg.Models.SyncConfig());
     return Results.Ok(new { success = true });

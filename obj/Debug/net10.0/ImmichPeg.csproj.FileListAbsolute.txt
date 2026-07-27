@@ -24,3 +24,4 @@
 /home/stamp/immich-peg/obj/Debug/net10.0/ImmichPeg.pdb
 /home/stamp/immich-peg/obj/Debug/net10.0/ImmichPeg.genruntimeconfig.cache
 /home/stamp/immich-peg/obj/Debug/net10.0/ref/ImmichPeg.dll
+/home/stamp/immich-peg/obj/Debug/net10.0/ImmichPeg.sourcelink.json
