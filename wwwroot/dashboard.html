@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard — Immich Peg</title>
+<link rel="icon" type="image/png" href="/logo.png">
 <style>
 :root {
   --bg: #0d1117; --bg-card: #161b22; --bg-input: #21262d; --border: #30363d;
@@ -13,7 +14,8 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 nav { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; height: 56px; gap: 24px; }
-nav .logo { font-size: 18px; font-weight: 600; color: var(--text); text-decoration: none; }
+nav .logo { font-size: 18px; font-weight: 600; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+nav .logo img { width: 32px; height: 32px; border-radius: 8px; }
 nav .logo span { color: var(--accent); }
 nav a { color: var(--text-dim); text-decoration: none; font-size: 14px; transition: color 0.2s; }
 nav a:hover, nav a.active { color: var(--text); }
@@ -63,23 +65,20 @@ td { color: var(--text); }
 </head>
 <body>
 <nav>
-  <a href="/" class="logo">🔄 <span>Immich Peg</span></a>
+  <a href="/" class="logo"><img src="/logo.png" alt="Immich Peg"> <span>Immich Peg</span></a>
   <a href="/dashboard.html" class="active">Dashboard</a>
   <a href="/settings.html">Settings</a>
   <div class="spacer"></div>
 </nav>
 
 <div class="container">
-  <!-- Not set up -->
   <div class="hidden" id="notSetUp">
     <h2>Not Configured</h2>
     <p>Run the setup wizard to configure Immich Peg.</p>
     <a href="/setup.html" class="btn btn-primary">Run Setup →</a>
   </div>
 
-  <!-- Dashboard -->
   <div class="hidden" id="dashboard">
-    <!-- Health -->
     <div class="card">
       <h2>System Health <span id="healthIndicator"></span></h2>
       <div class="health-row">
@@ -89,7 +88,6 @@ td { color: var(--text); }
       </div>
     </div>
 
-    <!-- Stats -->
     <div class="metrics" id="metrics">
       <div class="metric"><div class="label">Shared Albums</div><div class="value" id="statShared">0</div></div>
       <div class="metric"><div class="label">Synced Albums</div><div class="value" id="statSynced">0</div></div>
@@ -97,7 +95,6 @@ td { color: var(--text); }
       <div class="metric"><div class="label">Assets Copied</div><div class="value" id="statAssets">0</div><div class="sub" id="statAlbumsRemoved"></div></div>
     </div>
 
-    <!-- Sync Controls -->
     <div class="card">
       <h2>Sync Controls <span class="status-dot" id="syncDot"></span></h2>
       <div class="sync-status" id="syncInfo">No sync running</div>
@@ -108,13 +105,11 @@ td { color: var(--text); }
       </div>
     </div>
 
-    <!-- Albums -->
     <div class="card">
       <h2>Synced Albums</h2>
       <div id="albumTable"></div>
     </div>
 
-    <!-- Recent Activity -->
     <div class="card">
       <h2>Recent Activity</h2>
       <div id="recentTable"></div>
@@ -131,17 +126,9 @@ async function loadDashboard() {
     const r = await fetch('/api/dashboard');
     if (!r.ok) throw new Error('API error');
     const d = await r.json();
-
-    if (!d.setupComplete) {
-      document.getElementById('notSetUp').classList.remove('hidden');
-      document.getElementById('dashboard').classList.add('hidden');
-      return;
-    }
-
+    if (!d.setupComplete) { document.getElementById('notSetUp').classList.remove('hidden'); document.getElementById('dashboard').classList.add('hidden'); return; }
     document.getElementById('notSetUp').classList.add('hidden');
     document.getElementById('dashboard').classList.remove('hidden');
-
-    // Health
     const mainOk = d.health?.main;
     const pubOk = d.health?.public;
     document.getElementById('healthMain').textContent = mainOk ? 'UP' : 'DOWN';
@@ -149,69 +136,47 @@ async function loadDashboard() {
     document.getElementById('dotMain').className = 'status-dot ' + (mainOk ? 'ok' : 'down');
     document.getElementById('dotPublic').className = 'status-dot ' + (pubOk ? 'ok' : 'down');
     document.getElementById('healthLastCheck').textContent = d.lastSync ? new Date(d.lastSync).toLocaleString() : '';
-
-    // Stats
     document.getElementById('statShared').textContent = d.totalSharedAlbums || 0;
     document.getElementById('statSynced').textContent = d.totalSyncedAlbums || 0;
     document.getElementById('statSyncedEver').textContent = d.totalAlbumsSyncedEver || 0;
     document.getElementById('statAssets').textContent = d.totalAssetsCopiedEver || 0;
     document.getElementById('statAlbumsRemoved').textContent = (d.totalAlbumsRemovedEver || 0) + ' removed';
-
-    // Sync status
     const syncing = d.syncActive;
     document.getElementById('syncDot').className = 'status-dot ' + (syncing ? 'syncing' : 'ok');
-    document.getElementById('syncInfo').textContent = syncing
-      ? 'Sync in progress...'
-      : (d.lastSyncStatus === 'never' ? 'No sync run yet' : 'Last sync: ' + d.lastSyncStatus + ' — ' + (d.lastSyncMessage || ''));
+    document.getElementById('syncInfo').textContent = syncing ? 'Sync in progress...' : (d.lastSyncStatus === 'never' ? 'No sync run yet' : 'Last sync: ' + d.lastSyncStatus + '\u00a0\u2014 ' + (d.lastSyncMessage || ''));
     document.getElementById('btnPublish').disabled = syncing;
     document.getElementById('btnAssets').disabled = syncing;
     document.getElementById('btnStop').disabled = !syncing;
-
-    // Albums table
     const albums = d.syncedAlbums || [];
     if (albums.length === 0) {
       document.getElementById('albumTable').innerHTML = '<div class="empty">No albums synced yet</div>';
     } else {
-      document.getElementById('albumTable').innerHTML = `<table>
-        <tr><th>Album</th><th>Assets</th><th>Last Synced</th></tr>
-        ${albums.map(a => `<tr><td>${esc(a.albumName)}</td><td>${a.assetCount}/${a.totalAssets || a.assetCount}</td><td>${a.lastSynced ? new Date(a.lastSynced).toLocaleString() : '—'}</td></tr>`).join('')}
-      </table>`;
+      document.getElementById('albumTable').innerHTML = '<table><tr><th>Album</th><th>Assets</th><th>Last Synced</th></tr>' +
+        albums.map(a => '<tr><td>' + esc(a.albumName) + '</td><td>' + a.assetCount + '/' + (a.totalAssets || a.assetCount) + '</td><td>' + (a.lastSynced ? new Date(a.lastSynced).toLocaleString() : '\u2014') + '</td></tr>').join('') + '</table>';
     }
-
-    // Recent activity
     const recent = d.recentAssets || [];
     if (recent.length === 0) {
       document.getElementById('recentTable').innerHTML = '<div class="empty">No recent activity</div>';
     } else {
-      document.getElementById('recentTable').innerHTML = `<table>
-        <tr><th>File</th><th>Album</th><th>Time</th></tr>
-        ${recent.slice(0, 10).map(a => `<tr><td>${esc(a.filename)}</td><td>${esc(a.albumName)}</td><td>${new Date(a.timestamp).toLocaleString()}</td></tr>`).join('')}
-      </table>`;
+      document.getElementById('recentTable').innerHTML = '<table><tr><th>File</th><th>Album</th><th>Time</th></tr>' +
+        recent.slice(0, 10).map(a => '<tr><td>' + esc(a.filename) + '</td><td>' + esc(a.albumName) + '</td><td>' + new Date(a.timestamp).toLocaleString() + '</td></tr>').join('') + '</table>';
     }
   } catch(e) {
     document.getElementById('notSetUp').classList.remove('hidden');
     document.getElementById('notSetUp').innerHTML = '<h2>Connection Error</h2><p>' + esc(e.message) + '</p><button class="btn btn-primary" onclick="loadDashboard()">Retry</button>';
   }
 }
-
 function esc(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
 async function startSync(action) {
   const btn = document.getElementById(action === 'publish' ? 'btnPublish' : 'btnAssets');
   btn.disabled = true;
-  try {
-    await fetch('/api/sync/' + action, { method: 'POST' });
-  } catch(e) {}
+  try { await fetch('/api/sync/' + action, { method: 'POST' }); } catch(e) {}
   setTimeout(loadDashboard, 1000);
 }
-
 async function stopSync() {
-  try {
-    await fetch('/api/sync/stop', { method: 'POST' });
-  } catch(e) {}
+  try { await fetch('/api/sync/stop', { method: 'POST' }); } catch(e) {}
   setTimeout(loadDashboard, 1000);
 }
-
 loadDashboard();
 pollTimer = setInterval(loadDashboard, POLL_MS);
 </script>
