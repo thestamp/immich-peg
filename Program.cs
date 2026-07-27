@@ -104,16 +104,11 @@ app.MapPost("/api/settings", async (SyncConfigService cfg, SetupRequest req) =>
     return Results.Ok(new { success = true });
 });
 
-app.MapPost("/api/reset", ([FromServices] SyncConfigService cfg) =>
-{
-    cfg.Save(new ImmichPeg.Models.SyncConfig());
-    return Results.Ok(new { success = true });
-});
-
 app.MapGet("/api/settings", (SyncConfigService cfg) =>
 {
     var config = cfg.Load();
     if (!config.SetupComplete) return Results.BadRequest(new { error = "Not set up" });
+    if (!config.SettingsEnabled) return Results.Json(new { error = "Settings locked" }, statusCode: 403);
     return Results.Ok(new
     {
         mainUrl = config.Main.Url,
