@@ -7,7 +7,7 @@ public class SyncConfigService
 {
     private const string ConfigPath = "/data/config.json";
     private const int RecentAssetsMax = 20;
-    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true, PropertyNamingPolicy = new SnakeCaseNamingPolicy() };
 
     public SyncConfig Load()
     {
@@ -36,5 +36,14 @@ public class SyncConfigService
         });
         if (config.RecentAssets.Count > RecentAssetsMax)
             config.RecentAssets = config.RecentAssets.Take(RecentAssetsMax).ToList();
+    }
+}
+
+public class SnakeCaseNamingPolicy : System.Text.Json.JsonNamingPolicy
+{
+    public override string ConvertName(string name)
+    {
+        return string.Concat(name.Select((c, i) => 
+            i > 0 && char.IsUpper(c) ? "_" + char.ToLower(c) : char.ToLower(c).ToString()));
     }
 }
