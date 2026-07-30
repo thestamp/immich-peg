@@ -216,7 +216,7 @@ function updateFlickrUI(fs) {
   if (fs.authorized) {
     document.getElementById('flickrAuthOk').innerHTML = '✓ Connected as <strong>' + (fs.username || 'user') + '</strong> — ' + fs.albumsSynced + ' albums, ' + fs.photosUploaded + ' photos';
   }
-  document.getElementById('btnFlickrAuth').disabled = !document.getElementById('flickrApiKey').value.trim() || !document.getElementById('flickrApiSecret').value.trim() || fs.authorized;
+  document.getElementById('btnFlickrAuth').disabled = !fs.configured || fs.authorized;
 }
 
 function toggleKey(inputId, btnId) {
