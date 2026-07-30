@@ -49,7 +49,7 @@ public class ImmichClient : IDisposable
             var query = $"albums?page={page}&size=500";
             if (shared.HasValue)
             {
-                query += $"&isShared={shared.Value.ToString().ToLower()}&isOwned={shared.Value.ToString().ToLower()}";
+                query += $"&shared={shared.Value.ToString().ToLower()}";
             }
             var resp = await _http.GetAsync(query);
             resp.EnsureSuccessStatusCode();
