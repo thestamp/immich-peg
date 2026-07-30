@@ -10,6 +10,8 @@ public class SyncConfig
 {
     public InstanceConfig Main { get; set; } = new();
     public InstanceConfig Public { get; set; } = new();
+    public FlickrConfig Flickr { get; set; } = new();
+    public string SyncTarget { get; set; } = "immich"; // "immich" or "flickr"
     public int SyncIntervalMinutes { get; set; } = 5;
     public bool SetupComplete { get; set; }
     public bool SettingsEnabled { get; set; } = true;
@@ -24,6 +26,9 @@ public class SyncConfig
     public int TotalSyncedAlbums { get; set; }
     public Dictionary<string, SyncedAlbum> SyncedAlbums { get; set; } = new();
     public List<RecentAsset> RecentAssets { get; set; } = new();
+    public int FlickrAlbumsSynced { get; set; }
+    public int FlickrPhotosUploaded { get; set; }
+    public Dictionary<string, string> FlickredAlbums { get; set; } = new(); // main album ID → flickr photoset ID
 }
 
 public class SyncedAlbum
@@ -61,6 +66,9 @@ public class DashboardData
     public List<SyncedAlbum> SyncedAlbums { get; set; } = new();
     public List<RecentAsset> RecentAssets { get; set; } = new();
     public Dictionary<string, PermissionStatus>? Permissions { get; set; }
+    public FlickrStatus? Flickr { get; set; }
+    public bool HasPublicDest { get; set; }
+    public string SyncTarget { get; set; } = "immich";
 }
 
 public class PermissionStatus
@@ -69,4 +77,25 @@ public class PermissionStatus
     public List<string> Required { get; set; } = new();
     public List<string> Missing { get; set; } = new();
     public bool Ok => Missing.Count == 0;
+}
+
+public class FlickrConfig
+{
+    public string ApiKey { get; set; } = "";
+    public string ApiSecret { get; set; } = "";
+    public string AccessToken { get; set; } = "";
+    public string AccessTokenSecret { get; set; } = "";
+    public string UserId { get; set; } = "";
+    public string Username { get; set; } = "";
+    public bool Enabled { get; set; }
+}
+
+public class FlickrStatus
+{
+    public bool Configured { get; set; }
+    public bool Authorized { get; set; }
+    public string? Username { get; set; }
+    public bool Enabled { get; set; }
+    public int AlbumsSynced { get; set; }
+    public int PhotosUploaded { get; set; }
 }

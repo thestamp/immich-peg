@@ -9,11 +9,11 @@
 :root {
   --bg: #0d1117; --bg-card: #161b22; --bg-input: #21262d; --border: #30363d;
   --text: #c9d1d9; --text-dim: #8b949e; --accent: #58a6ff; --accent-hover: #79c0ff;
-  --green: #3fb950; --red: #f85149; --yellow: #d2991d; --radius: 8px;
+  --green: #3fb950; --red: #f85149; --yellow: #d2991d; --pink: #ff0084; --radius: 8px;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
-.container { width: 100%; max-width: 640px; padding: 24px; }
+.container { width: 100%; max-width: 680px; padding: 24px; }
 .header { padding: 20px 0; text-align: center; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
 .header h1 { font-size: 24px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px; }
 .header h1 img { width: 40px; height: 40px; border-radius: 10px; }
@@ -22,7 +22,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .step { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; background: var(--bg-input); border: 2px solid var(--border); color: var(--text-dim); }
 .step.active { border-color: var(--accent); color: var(--accent); background: rgba(88,166,255,0.1); }
 .step.done { border-color: var(--green); color: var(--green); background: rgba(63,185,80,0.1); }
-.step-line { width: 40px; height: 2px; background: var(--border); align-self: center; }
+.step-line { width: 30px; height: 2px; background: var(--border); align-self: center; }
 .step-line.done { background: var(--green); }
 .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; }
 .card h2 { font-size: 18px; margin-bottom: 16px; font-weight: 600; }
@@ -35,12 +35,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .checkbox-group { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .checkbox-group input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
 .checkbox-group label { font-size: 14px; cursor: pointer; color: var(--text); }
-.checkbox-group .hint { font-size: 12px; color: var(--text-dim); margin-left: 26px; display: block; }
 .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-primary:hover { background: var(--accent-hover); }
 .btn-secondary { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); }
 .btn-secondary:hover { background: var(--border); }
+.btn-flickr { background: var(--pink); color: #fff; }
+.btn-flickr:hover { background: #ff339d; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-row { display: flex; gap: 8px; margin-top: 16px; }
 .error { background: rgba(248,81,73,0.1); border: 1px solid var(--red); color: var(--red); padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 16px; display: none; }
@@ -48,6 +49,17 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .success h2 { color: var(--green); margin-bottom: 8px; }
 .success p { color: var(--text-dim); margin-bottom: 20px; }
 .hidden { display: none; }
+.target-choice { display: flex; gap: 12px; margin-bottom: 20px; }
+.target-option { flex: 1; background: var(--bg-input); border: 2px solid var(--border); border-radius: var(--radius); padding: 16px; cursor: pointer; text-align: center; transition: all 0.2s; }
+.target-option:hover { border-color: var(--text-dim); }
+.target-option.selected { border-color: var(--accent); background: rgba(88,166,255,0.08); }
+.target-option .icon { font-size: 28px; margin-bottom: 8px; }
+.target-option .name { font-size: 15px; font-weight: 600; }
+.target-option .desc { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+.target-option.flickr-opt.selected { border-color: var(--pink); background: rgba(255,0,132,0.08); }
+.auth-status { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin: 12px 0; }
+.auth-status.ok { background: rgba(63,185,80,0.1); border: 1px solid var(--green); color: var(--green); }
+.auth-status.pending { background: rgba(210,153,29,0.1); border: 1px solid var(--yellow); color: var(--yellow); }
 </style>
 </head>
 <body>
@@ -67,62 +79,65 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 
   <div id="errorBox" class="error"></div>
 
+  <!-- Step 1: Main Immich -->
   <div class="card" id="step1Card">
     <h2>Step 1: Main Immich Instance</h2>
-    <div class="form-group">
-      <label>Main Immich URL</label>
-      <input type="text" id="mainUrl" placeholder="http://immich_server:2283">
-      <div class="form-hint">Internal Docker hostname or IP of your main Immich server</div>
-    </div>
-    <div class="form-group">
-      <label>Main Immich API Key</label>
-      <input type="password" id="mainApiKey" placeholder="sk_...">
-      <div class="form-hint">Create an API key in Immich Admin → API Keys</div>
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-primary" onclick="nextStep()">Next →</button>
-    </div>
+    <div class="form-group"><label>Main Immich URL</label><input type="text" id="mainUrl" placeholder="http://immich_server:2283"><div class="form-hint">Internal Docker hostname or IP</div></div>
+    <div class="form-group"><label>Main API Key</label><input type="password" id="mainApiKey" placeholder="sk_..."><div class="form-hint">Create in Immich Admin → API Keys</div></div>
+    <div class="btn-row"><button class="btn btn-primary" onclick="nextStep()">Next →</button></div>
   </div>
 
+  <!-- Step 2: Choose destination -->
   <div class="card hidden" id="step2Card">
-    <h2>Step 2: Public Immich Instance</h2>
-    <div class="form-group">
-      <label>Public Immich URL</label>
-      <input type="text" id="publicUrl" placeholder="http://immich_public_server:2283">
-      <div class="form-hint">Internal Docker hostname or IP of your public Immich server</div>
+    <h2>Step 2: Sync Destination</h2>
+    <p style="color:var(--text-dim);margin-bottom:16px;font-size:14px">Where should shared albums be synced? Pick one.</p>
+
+    <div class="target-choice">
+      <div class="target-option" id="targetImmich" onclick="selectTarget('immich')">
+        <div class="icon">🖥️</div>
+        <div class="name">Public Immich</div>
+        <div class="desc">Sync to another Immich instance</div>
+      </div>
+      <div class="target-option flickr-opt" id="targetFlickr" onclick="selectTarget('flickr')">
+        <div class="icon">📷</div>
+        <div class="name">Flickr</div>
+        <div class="desc">Sync to Flickr albums</div>
+      </div>
     </div>
-    <div class="form-group">
-      <label>Public Immich API Key</label>
-      <input type="password" id="publicApiKey" placeholder="sk_...">
-      <div class="form-hint">Create an API key in your public Immich instance</div>
+
+    <!-- Immich fields -->
+    <div id="immichFields" class="hidden">
+      <div class="form-group"><label>Public Immich URL</label><input type="text" id="publicUrl" placeholder="http://immich_public_server:2283"><div class="form-hint">Internal Docker hostname or IP</div></div>
+      <div class="form-group"><label>Public API Key</label><input type="password" id="publicApiKey" placeholder="sk_..."><div class="form-hint">Create in your public Immich instance</div></div>
     </div>
+
+    <!-- Flickr fields -->
+    <div id="flickrFields" class="hidden">
+      <div class="form-hint" style="margin-bottom:12px">Create a Flickr App at <a href="https://www.flickr.com/services/apps/create/" target="_blank" style="color:var(--accent)">flickr.com/services/apps/create</a> — choose "non-commercial" and request write permissions.</div>
+      <div class="form-group"><label>Flickr API Key</label><input type="text" id="flickrApiKey" placeholder="abc123..."></div>
+      <div class="form-group"><label>Flickr API Secret</label><input type="password" id="flickrApiSecret" placeholder="..."></div>
+      <div id="flickrAuthBlock">
+        <div class="auth-status pending" id="flickrAuthNote">⚠️ Authorization required — click the button below, then return here</div>
+        <button class="btn btn-flickr" id="btnFlickrAuth" onclick="authorizeFlickr()">🔑 Authorize with Flickr</button>
+      </div>
+      <div class="auth-status ok hidden" id="flickrAuthOk"></div>
+    </div>
+
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
-      <button class="btn btn-primary" onclick="nextStep()">Next →</button>
+      <button class="btn btn-primary" id="btnStep2Next" onclick="nextStep()" disabled>Next →</button>
     </div>
   </div>
 
+  <!-- Step 3: Sync Settings -->
   <div class="card hidden" id="step3Card">
     <h2>Step 3: Sync Settings</h2>
-    <div class="form-group">
-      <label>Sync Interval (minutes)</label>
-      <input type="number" id="syncInterval" value="5" min="1" max="60">
-      <div class="form-hint">How often to automatically sync (1-60 minutes)</div>
-    </div>
-    <div class="checkbox-group">
-      <input type="checkbox" id="lockSettings">
-      <label for="lockSettings">Lock settings after setup</label>
-    </div>
-    <div class="hint" style="color:var(--text-dim);font-size:12px;margin-left:26px;margin-top:-8px;margin-bottom:16px;">Prevents changes to configuration without a reset</div>
-    <div class="checkbox-group">
-      <input type="checkbox" id="disableDashboard">
-      <label for="disableDashboard">Disable public dashboard</label>
-    </div>
-    <div class="hint" style="color:var(--text-dim);font-size:12px;margin-left:26px;margin-top:-8px;margin-bottom:16px;">Hides the dashboard from unauthorized viewers</div>
-    <div class="btn-row">
-      <button class="btn btn-secondary" onclick="prevStep()">← Back</button>
-      <button class="btn btn-primary" id="btnFinish" onclick="finish()">✓ Complete Setup</button>
-    </div>
+    <div class="form-group"><label>Sync Interval (minutes)</label><input type="number" id="syncInterval" value="5" min="1" max="60"><div class="form-hint">How often to automatically sync (1-60 minutes)</div></div>
+    <div class="checkbox-group"><input type="checkbox" id="lockSettings"><label for="lockSettings">Lock settings after setup</label></div>
+    <div style="color:var(--text-dim);font-size:12px;margin-left:26px;margin-top:-8px;margin-bottom:16px;">Prevents changes without server-level access</div>
+    <div class="checkbox-group"><input type="checkbox" id="disableDashboard"><label for="disableDashboard">Disable public dashboard</label></div>
+    <div style="color:var(--text-dim);font-size:12px;margin-left:26px;margin-top:-8px;margin-bottom:16px;">Hides the dashboard from unauthorized viewers</div>
+    <div class="btn-row"><button class="btn btn-secondary" onclick="prevStep()">← Back</button><button class="btn btn-primary" id="btnFinish" onclick="finish()">✓ Complete Setup</button></div>
   </div>
 
   <div class="success hidden" id="successCard">
@@ -134,6 +149,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 
 <script>
 let step = 1;
+let selectedTarget = null;
+let flickrAuthorized = false;
+
 function showStep(n) {
   step = n;
   document.querySelectorAll('[id$=Card]').forEach(c => c.classList.add('hidden'));
@@ -143,27 +161,133 @@ function showStep(n) {
     el.classList.remove('active', 'done');
     if (i < n) el.classList.add('done'); else if (i === n) el.classList.add('active');
   }
-  for (let i = 1; i <= 2; i++) {
-    document.getElementById('line' + i).classList.toggle('done', i < n);
+  for (let i = 1; i <= 2; i++) document.getElementById('line' + i).classList.toggle('done', i < n);
+  updateStep2Button();
+}
+
+function selectTarget(target) {
+  selectedTarget = target;
+  document.getElementById('targetImmich').classList.toggle('selected', target === 'immich');
+  document.getElementById('targetFlickr').classList.toggle('selected', target === 'flickr');
+  document.getElementById('immichFields').classList.toggle('hidden', target !== 'immich');
+  document.getElementById('flickrFields').classList.toggle('hidden', target !== 'flickr');
+  if (target === 'flickr') checkFlickrAuth();
+  updateStep2Button();
+}
+
+function updateStep2Button() {
+  if (step !== 2) return;
+  const btn = document.getElementById('btnStep2Next');
+  if (!selectedTarget) { btn.disabled = true; return; }
+  if (selectedTarget === 'flickr' && !flickrAuthorized) { btn.disabled = true; return; }
+  if (selectedTarget === 'immich') {
+    const url = document.getElementById('publicUrl').value.trim();
+    const key = document.getElementById('publicApiKey').value.trim();
+    btn.disabled = !url || !key;
+  } else {
+    btn.disabled = false;
   }
 }
+
+// Live validation for Immich fields
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('publicUrl').addEventListener('input', updateStep2Button);
+  document.getElementById('publicApiKey').addEventListener('input', updateStep2Button);
+});
+
 function nextStep() {
-  if (step === 1 && (!document.getElementById('mainUrl').value || !document.getElementById('mainApiKey').value)) { showError('Please fill in both URL and API key.'); return; }
-  if (step === 2 && (!document.getElementById('publicUrl').value || !document.getElementById('publicApiKey').value)) { showError('Please fill in both URL and API key.'); return; }
   document.getElementById('errorBox').style.display = 'none';
+  if (step === 1) {
+    if (!document.getElementById('mainUrl').value || !document.getElementById('mainApiKey').value) {
+      showError('Please fill in both URL and API key.'); return;
+    }
+  }
+  if (step === 2) {
+    if (!selectedTarget) { showError('Please select a sync destination.'); return; }
+    if (selectedTarget === 'flickr') {
+      if (!flickrAuthorized) { showError('Complete Flickr authorization before proceeding.'); return; }
+      if (!document.getElementById('flickrApiKey').value || !document.getElementById('flickrApiSecret').value) {
+        showError('Please fill in Flickr API key and secret.'); return;
+      }
+    }
+    if (selectedTarget === 'immich') {
+      if (!document.getElementById('publicUrl').value || !document.getElementById('publicApiKey').value) {
+        showError('Please fill in public Immich URL and API key.'); return;
+      }
+    }
+  }
   if (step < 3) showStep(step + 1);
 }
+
 function prevStep() { document.getElementById('errorBox').style.display = 'none'; if (step > 1) showStep(step - 1); }
 function showError(msg) { const el = document.getElementById('errorBox'); el.textContent = msg; el.style.display = 'block'; }
+
+async function authorizeFlickr() {
+  const key = document.getElementById('flickrApiKey').value.trim();
+  const secret = document.getElementById('flickrApiSecret').value.trim();
+  if (!key || !secret) { showError('Enter Flickr API key and secret first.'); return; }
+
+  // Save credentials first so authorize endpoint can use them
+  try {
+    await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      mainUrl: document.getElementById('mainUrl').value.trim(),
+      mainApiKey: document.getElementById('mainApiKey').value.trim(),
+      syncTarget: 'flickr',
+      flickrApiKey: key,
+      flickrApiSecret: secret,
+      syncInterval: 5,
+      lockSettings: false,
+      disableDashboard: false,
+      flickrEnabled: 'true'
+    })});
+  } catch(e) { showError('Failed to save credentials: ' + e.message); return; }
+
+  try {
+    const r = await fetch('/api/flickr/authorize', { method: 'POST' });
+    const d = await r.json();
+    if (d.url) window.open(d.url, '_blank');
+    else showError(d.error || 'Failed to get authorization URL');
+  } catch(e) { showError(e.message); }
+}
+
+async function checkFlickrAuth() {
+  try {
+    const r = await fetch('/api/flickr/status');
+    if (!r.ok) return;
+    const fs = await r.json();
+    flickrAuthorized = fs.authorized;
+    document.getElementById('flickrAuthBlock').classList.toggle('hidden', fs.authorized);
+    document.getElementById('flickrAuthOk').classList.toggle('hidden', !fs.authorized);
+    if (fs.authorized) {
+      document.getElementById('flickrAuthOk').textContent = '✓ Connected as ' + fs.username;
+      document.getElementById('flickrAuthOk').classList.add('ok');
+    }
+    updateStep2Button();
+  } catch(e) {}
+}
+
+// Poll for Flickr auth completion
+setInterval(() => { if (selectedTarget === 'flickr' && !flickrAuthorized) checkFlickrAuth(); }, 3000);
+
 async function finish() {
   const btn = document.getElementById('btnFinish'); btn.disabled = true; btn.textContent = 'Saving...'; document.getElementById('errorBox').style.display = 'none';
   try {
-    const r = await fetch('/api/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-      mainUrl: document.getElementById('mainUrl').value.trim(), mainApiKey: document.getElementById('mainApiKey').value.trim(),
-      publicUrl: document.getElementById('publicUrl').value.trim(), publicApiKey: document.getElementById('publicApiKey').value.trim(),
+    const body = {
+      mainUrl: document.getElementById('mainUrl').value.trim(),
+      mainApiKey: document.getElementById('mainApiKey').value.trim(),
       syncInterval: parseInt(document.getElementById('syncInterval').value) || 5,
-      lockSettings: document.getElementById('lockSettings').checked, disableDashboard: document.getElementById('disableDashboard').checked
-    })});
+      lockSettings: document.getElementById('lockSettings').checked,
+      disableDashboard: document.getElementById('disableDashboard').checked,
+      syncTarget: selectedTarget
+    };
+    if (selectedTarget === 'immich') {
+      body.publicUrl = document.getElementById('publicUrl').value.trim();
+      body.publicApiKey = document.getElementById('publicApiKey').value.trim();
+    } else {
+      body.flickrApiKey = document.getElementById('flickrApiKey').value.trim();
+      body.flickrApiSecret = document.getElementById('flickrApiSecret').value.trim();
+    }
+    const r = await fetch('/api/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json();
     if (!r.ok || !d.success) { showError(d.error || 'Setup failed.'); btn.disabled = false; btn.textContent = '✓ Complete Setup'; return; }
     document.getElementById('step3Card').classList.add('hidden');

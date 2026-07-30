@@ -9,7 +9,7 @@
 :root {
   --bg: #0d1117; --bg-card: #161b22; --bg-input: #21262d; --border: #30363d;
   --text: #c9d1d9; --text-dim: #8b949e; --accent: #58a6ff; --accent-hover: #79c0ff;
-  --green: #3fb950; --red: #f85149; --yellow: #d2991d; --radius: 8px;
+  --green: #3fb950; --red: #f85149; --yellow: #d2991d; --pink: #ff0084; --radius: 8px;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -28,6 +28,7 @@ nav .spacer { flex: 1; }
 .metric .value.green { color: var(--green); }
 .metric .value.red { color: var(--red); }
 .metric .value.yellow { color: var(--yellow); }
+.metric .value.pink { color: var(--pink); }
 .metric .sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
 .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
 .card h2 { font-size: 16px; margin-bottom: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
@@ -43,6 +44,8 @@ nav .spacer { flex: 1; }
 .btn-danger:hover { opacity: 0.8; }
 .btn-secondary { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); }
 .btn-secondary:hover { background: var(--border); }
+.btn-flickr { background: var(--pink); color: #fff; }
+.btn-flickr:hover { background: #ff339d; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .sync-status { font-size: 13px; color: var(--text-dim); margin-top: 8px; padding: 8px 12px; background: var(--bg-input); border-radius: 6px; }
@@ -57,6 +60,8 @@ td { color: var(--text); }
 .badge.ok { background: rgba(63,185,80,0.15); color: var(--green); }
 .badge.warn { background: rgba(210,153,29,0.15); color: var(--yellow); }
 .badge.err { background: rgba(248,81,73,0.15); color: var(--red); }
+.flickr-card { border-left: 3px solid var(--pink); }
+.flickr-card h3 { font-size: 14px; color: var(--pink); }
 .hidden { display: none; }
 #notSetUp { text-align: center; padding: 60px 20px; }
 #notSetUp h2 { font-size: 22px; margin-bottom: 8px; }
@@ -84,6 +89,7 @@ td { color: var(--text); }
       <div class="health-row">
         <div class="health-item"><span class="status-dot" id="dotMain"></span> Main: <strong id="healthMain">-</strong></div>
         <div class="health-item"><span class="status-dot" id="dotPublic"></span> Public: <strong id="healthPublic">-</strong></div>
+        <div class="health-item" id="flickrHealth" style="display:none"><span class="status-dot" id="dotFlickr"></span> Flickr: <strong id="healthFlickr">-</strong></div>
         <span style="color:var(--text-dim);font-size:13px;margin-left:8px" id="healthLastCheck"></span>
       </div>
     </div>
@@ -91,8 +97,8 @@ td { color: var(--text); }
     <div class="metrics" id="metrics">
       <div class="metric"><div class="label">Shared Albums</div><div class="value" id="statShared">0</div></div>
       <div class="metric"><div class="label">Synced Albums</div><div class="value" id="statSynced">0</div></div>
-      <div class="metric"><div class="label">Albums Synced Ever</div><div class="value" id="statSyncedEver">0</div></div>
       <div class="metric"><div class="label">Assets Copied</div><div class="value" id="statAssets">0</div><div class="sub" id="statAlbumsRemoved"></div></div>
+      <div class="metric" id="flickrMetric" style="display:none"><div class="label">Flickr Photos</div><div class="value pink" id="statFlickrPhotos">0</div><div class="sub" id="statFlickrAlbums"></div></div>
     </div>
 
     <div class="card">
@@ -101,6 +107,7 @@ td { color: var(--text); }
       <div class="btn-row">
         <button class="btn btn-primary" id="btnPublish" onclick="startSync('publish')">📋 Publish Metadata</button>
         <button class="btn btn-primary" id="btnAssets" onclick="startSync('assets')">📦 Copy Assets</button>
+        <button class="btn btn-flickr" id="btnFlickr" onclick="startSync('flickr')" disabled>📷 Sync to Flickr</button>
         <button class="btn btn-danger" id="btnStop" onclick="stopSync()" disabled>⏹ Stop</button>
       </div>
     </div>
@@ -123,44 +130,58 @@ let pollTimer;
 
 async function loadDashboard() {
   try {
-    const r = await fetch('/api/dashboard');
-    if (!r.ok) throw new Error('API error');
-    const d = await r.json();
+    const [dr, fr] = await Promise.all([fetch('/api/dashboard'), fetch('/api/flickr/status').catch(() => null)]);
+    if (!dr.ok) throw new Error('API error');
+    const d = await dr.json();
     if (!d.setupComplete) { document.getElementById('notSetUp').classList.remove('hidden'); document.getElementById('dashboard').classList.add('hidden'); return; }
     document.getElementById('notSetUp').classList.add('hidden');
     document.getElementById('dashboard').classList.remove('hidden');
+    const target = d.syncTarget || 'immich';
+    const hasPublic = target === 'immich' && d.hasPublicDest;
+    const isFlickr = target === 'flickr' && d.flickr?.configured;
     const mainOk = d.health?.main;
-    const pubOk = d.health?.public;
     document.getElementById('healthMain').textContent = mainOk ? 'UP' : 'DOWN';
-    document.getElementById('healthPublic').textContent = pubOk ? 'UP' : 'DOWN';
     document.getElementById('dotMain').className = 'status-dot ' + (mainOk ? 'ok' : 'down');
-    document.getElementById('dotPublic').className = 'status-dot ' + (pubOk ? 'ok' : 'down');
+    document.getElementById('healthPublic').parentElement.style.display = hasPublic ? '' : 'none';
+    if (hasPublic) {
+      const pubOk = d.health?.public;
+      document.getElementById('healthPublic').textContent = pubOk ? 'UP' : 'DOWN';
+      document.getElementById('dotPublic').className = 'status-dot ' + (pubOk ? 'ok' : 'down');
+    }
     document.getElementById('healthLastCheck').textContent = d.lastSync ? new Date(d.lastSync).toLocaleString() : '';
     document.getElementById('statShared').textContent = d.totalSharedAlbums || 0;
     document.getElementById('statSynced').textContent = d.totalSyncedAlbums || 0;
-    document.getElementById('statSyncedEver').textContent = d.totalAlbumsSyncedEver || 0;
     document.getElementById('statAssets').textContent = d.totalAssetsCopiedEver || 0;
     document.getElementById('statAlbumsRemoved').textContent = (d.totalAlbumsRemovedEver || 0) + ' removed';
+    // Flickr
+    if (fr && fr.ok) {
+      const fs = await fr.json();
+      if (fs.configured) {
+        document.getElementById('flickrHealth').style.display = '';
+        document.getElementById('healthFlickr').textContent = fs.authorized ? (fs.enabled ? 'UP' : 'OFF') : 'NO AUTH';
+        document.getElementById('dotFlickr').className = 'status-dot ' + (fs.authorized && fs.enabled ? 'ok' : 'down');
+        document.getElementById('btnFlickr').disabled = !fs.authorized || !fs.enabled;
+        if (fs.albumsSynced > 0 || fs.photosUploaded > 0) document.getElementById('flickrMetric').style.display = '';
+        document.getElementById('statFlickrPhotos').textContent = fs.photosUploaded || 0;
+        document.getElementById('statFlickrAlbums').textContent = (fs.albumsSynced || 0) + ' albums';
+      }
+    }
     const syncing = d.syncActive;
     document.getElementById('syncDot').className = 'status-dot ' + (syncing ? 'syncing' : 'ok');
-    document.getElementById('syncInfo').textContent = syncing ? 'Sync in progress...' : (d.lastSyncStatus === 'never' ? 'No sync run yet' : 'Last sync: ' + d.lastSyncStatus + '\u00a0\u2014 ' + (d.lastSyncMessage || ''));
-    document.getElementById('btnPublish').disabled = syncing;
-    document.getElementById('btnAssets').disabled = syncing;
+    document.getElementById('syncInfo').textContent = syncing ? 'Sync in progress...' : (d.lastSyncStatus === 'never' ? 'No sync run yet' : 'Last sync: ' + d.lastSyncStatus + ' -- ' + (d.lastSyncMessage || ''));
+    document.getElementById('btnPublish').disabled = syncing || !hasPublic;
+    document.getElementById('btnPublish').style.display = hasPublic ? '' : 'none';
+    document.getElementById('btnAssets').disabled = syncing || !hasPublic;
+    document.getElementById('btnAssets').style.display = hasPublic ? '' : 'none';
+    document.getElementById('btnFlickr').disabled = syncing || !isFlickr || !d.flickr?.authorized;
+    document.getElementById('btnFlickr').style.display = isFlickr ? '' : 'none';
     document.getElementById('btnStop').disabled = !syncing;
     const albums = d.syncedAlbums || [];
-    if (albums.length === 0) {
-      document.getElementById('albumTable').innerHTML = '<div class="empty">No albums synced yet</div>';
-    } else {
-      document.getElementById('albumTable').innerHTML = '<table><tr><th>Album</th><th>Assets</th><th>Last Synced</th></tr>' +
-        albums.map(a => '<tr><td>' + esc(a.albumName) + '</td><td>' + a.assetCount + '/' + (a.totalAssets || a.assetCount) + '</td><td>' + (a.lastSynced ? new Date(a.lastSynced).toLocaleString() : '\u2014') + '</td></tr>').join('') + '</table>';
-    }
+    document.getElementById('albumTable').innerHTML = albums.length === 0 ? '<div class="empty">No albums synced yet</div>' :
+      '<table><tr><th>Album</th><th>Assets</th><th>Last Synced</th></tr>' + albums.map(a => '<tr><td>' + esc(a.albumName) + '</td><td>' + a.assetCount + '/' + (a.totalAssets || a.assetCount) + '</td><td>' + (a.lastSynced ? new Date(a.lastSynced).toLocaleString() : '--') + '</td></tr>').join('') + '</table>';
     const recent = d.recentAssets || [];
-    if (recent.length === 0) {
-      document.getElementById('recentTable').innerHTML = '<div class="empty">No recent activity</div>';
-    } else {
-      document.getElementById('recentTable').innerHTML = '<table><tr><th>File</th><th>Album</th><th>Time</th></tr>' +
-        recent.slice(0, 10).map(a => '<tr><td>' + esc(a.filename) + '</td><td>' + esc(a.albumName) + '</td><td>' + new Date(a.timestamp).toLocaleString() + '</td></tr>').join('') + '</table>';
-    }
+    document.getElementById('recentTable').innerHTML = recent.length === 0 ? '<div class="empty">No recent activity</div>' :
+      '<table><tr><th>File</th><th>Album</th><th>Time</th></tr>' + recent.slice(0, 10).map(a => '<tr><td>' + esc(a.filename) + '</td><td>' + esc(a.albumName) + '</td><td>' + new Date(a.timestamp).toLocaleString() + '</td></tr>').join('') + '</table>';
   } catch(e) {
     document.getElementById('notSetUp').classList.remove('hidden');
     document.getElementById('notSetUp').innerHTML = '<h2>Connection Error</h2><p>' + esc(e.message) + '</p><button class="btn btn-primary" onclick="loadDashboard()">Retry</button>';
@@ -168,7 +189,7 @@ async function loadDashboard() {
 }
 function esc(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 async function startSync(action) {
-  const btn = document.getElementById(action === 'publish' ? 'btnPublish' : 'btnAssets');
+  const btn = document.getElementById(action === 'publish' ? 'btnPublish' : action === 'assets' ? 'btnAssets' : 'btnFlickr');
   btn.disabled = true;
   try { await fetch('/api/sync/' + action, { method: 'POST' }); } catch(e) {}
   setTimeout(loadDashboard, 1000);

@@ -414,6 +414,19 @@ public class SyncEngine
         }
         catch { }
 
+        data.Flickr = new FlickrStatus
+        {
+            Configured = !string.IsNullOrEmpty(Config.Flickr.ApiKey),
+            Authorized = !string.IsNullOrEmpty(Config.Flickr.AccessToken),
+            Username = Config.Flickr.Username,
+            Enabled = Config.Flickr.Enabled,
+            AlbumsSynced = Config.FlickrAlbumsSynced,
+            PhotosUploaded = Config.FlickrPhotosUploaded
+        };
+
+        data.HasPublicDest = !string.IsNullOrWhiteSpace(Config.Public.Url);
+        data.SyncTarget = Config.SyncTarget;
+
         return data;
     }
 }

@@ -9,7 +9,7 @@
 :root {
   --bg: #0d1117; --bg-card: #161b22; --bg-input: #21262d; --border: #30363d;
   --text: #c9d1d9; --text-dim: #8b949e; --accent: #58a6ff; --accent-hover: #79c0ff;
-  --green: #3fb950; --red: #f85149; --yellow: #d2991d; --radius: 8px;
+  --green: #3fb950; --red: #f85149; --yellow: #d2991d; --pink: #ff0084; --radius: 8px;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
@@ -20,7 +20,7 @@ nav .logo span { color: var(--accent); }
 nav a { color: var(--text-dim); text-decoration: none; font-size: 14px; transition: color 0.2s; }
 nav a:hover, nav a.active { color: var(--text); }
 nav .spacer { flex: 1; }
-.container { width: 100%; max-width: 640px; margin: 0 auto; padding: 24px; }
+.container { width: 100%; max-width: 680px; margin: 0 auto; padding: 24px; }
 .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 16px; }
 .card h2 { font-size: 18px; margin-bottom: 20px; font-weight: 600; }
 .form-group { margin-bottom: 16px; }
@@ -39,6 +39,8 @@ nav .spacer { flex: 1; }
 .btn-danger:hover { opacity: 0.8; }
 .btn-secondary { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); }
 .btn-secondary:hover { background: var(--border); }
+.btn-flickr { background: var(--pink); color: #fff; }
+.btn-flickr:hover { background: #ff339d; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-row { display: flex; gap: 8px; margin-top: 16px; }
 .msg { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 16px; display: none; }
@@ -50,11 +52,18 @@ nav .spacer { flex: 1; }
 .key-row input { flex: 1; }
 .toggle-btn { padding: 8px 12px; font-size: 12px; cursor: pointer; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-dim); border-radius: 6px; }
 .toggle-btn:hover { color: var(--text); border-color: var(--accent); }
-.overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
-.overlay.show { display: flex; }
-.overlay .dialog { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; max-width: 400px; width: 90%; }
-.overlay .dialog h3 { margin-bottom: 12px; font-size: 16px; }
-.overlay .dialog p { color: var(--text-dim); font-size: 13px; margin-bottom: 16px; }
+.target-choice { display: flex; gap: 12px; margin-bottom: 20px; }
+.target-option { flex: 1; background: var(--bg-input); border: 2px solid var(--border); border-radius: var(--radius); padding: 14px; cursor: pointer; text-align: center; transition: all 0.2s; }
+.target-option:hover { border-color: var(--text-dim); }
+.target-option.selected { border-color: var(--accent); background: rgba(88,166,255,0.08); }
+.target-option .icon { font-size: 22px; margin-bottom: 4px; }
+.target-option .name { font-size: 14px; font-weight: 600; }
+.target-option .desc { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+.target-option.flickr-opt.selected { border-color: var(--pink); background: rgba(255,0,132,0.08); }
+.auth-block { padding: 12px; border-radius: 6px; margin: 12px 0; }
+.auth-block.warn { background: rgba(210,153,29,0.1); border: 1px solid var(--yellow); }
+.auth-block.ok { background: rgba(63,185,80,0.1); border: 1px solid var(--green); }
+.hidden { display: none; }
 </style>
 </head>
 <body>
@@ -74,25 +83,62 @@ nav .spacer { flex: 1; }
     </div>
   </div>
   <div id="settingsForm" style="display:none">
+    <!-- Main Immich -->
     <div class="card">
-      <h2>Instance Configuration</h2>
+      <h2>Main Immich Instance</h2>
       <div class="form-group"><label>Main Immich URL</label><input type="text" id="mainUrl"></div>
-      <div class="form-group">
-        <label>Main API Key</label>
-        <div class="key-row">
-          <input type="password" id="mainApiKey" placeholder="Leave blank to keep current" readonly>
-          <button class="toggle-btn" id="toggleMainKey" onclick="toggleKey('mainApiKey','toggleMainKey')">👁 Show</button>
-        </div>
+      <div class="form-group"><label>Main API Key</label>
+        <div class="key-row"><input type="password" id="mainApiKey" placeholder="Leave blank to keep current" readonly>
+        <button class="toggle-btn" id="toggleMainKey" onclick="toggleKey('mainApiKey','toggleMainKey')">👁 Show</button></div>
         <div class="form-hint">Current key: <span id="mainKeyMask"></span></div>
       </div>
-      <div class="form-group"><label>Public Immich URL</label><input type="text" id="publicUrl"></div>
-      <div class="form-group">
-        <label>Public API Key</label>
-        <div class="key-row">
-          <input type="password" id="publicApiKey" placeholder="Leave blank to keep current" readonly>
-          <button class="toggle-btn" id="togglePubKey" onclick="toggleKey('publicApiKey','togglePubKey')">👁 Show</button>
+    </div>
+
+    <!-- Sync Destination -->
+    <div class="card">
+      <h2>Sync Destination <span style="font-size:12px;color:var(--text-dim);font-weight:400">— pick one</span></h2>
+      <p style="color:var(--text-dim);font-size:13px;margin-bottom:14px">Shared albums sync to ONE destination only. Switching clears the other.</p>
+
+      <div class="target-choice">
+        <div class="target-option" id="targetImmich" onclick="selectTarget('immich')">
+          <div class="icon">🖥️</div>
+          <div class="name">Public Immich</div>
+          <div class="desc">Another Immich server</div>
         </div>
-        <div class="form-hint">Current key: <span id="publicKeyMask"></span></div>
+        <div class="target-option flickr-opt" id="targetFlickr" onclick="selectTarget('flickr')">
+          <div class="icon">📷</div>
+          <div class="name">Flickr</div>
+          <div class="desc">Flickr albums</div>
+        </div>
+      </div>
+
+      <!-- Immich destination fields -->
+      <div id="immichDest" class="hidden">
+        <div class="form-group"><label>Public Immich URL</label><input type="text" id="publicUrl"></div>
+        <div class="form-group"><label>Public API Key</label>
+          <div class="key-row"><input type="password" id="publicApiKey" placeholder="Leave blank to keep current" readonly>
+          <button class="toggle-btn" id="togglePubKey" onclick="toggleKey('publicApiKey','togglePubKey')">👁 Show</button></div>
+          <div class="form-hint">Current key: <span id="publicKeyMask"></span></div>
+        </div>
+      </div>
+
+      <!-- Flickr destination fields -->
+      <div id="flickrDest" class="hidden">
+        <div class="form-group"><label>Flickr API Key</label><input type="text" id="flickrApiKey"></div>
+        <div class="form-group"><label>Flickr API Secret</label>
+          <div class="key-row"><input type="password" id="flickrApiSecret" placeholder="Leave blank to keep current" readonly>
+          <button class="toggle-btn" id="toggleFlickrKey" onclick="toggleKey('flickrApiSecret','toggleFlickrKey')">👁 Show</button></div>
+          <div class="form-hint">Current: <span id="flickrSecretMask"></span></div>
+        </div>
+        <div id="flickrAuthBlock">
+          <div class="auth-block warn">
+            <strong>⚠️ Authorization required</strong><br>
+            <span style="font-size:12px">Click Authorize to complete the OAuth flow. You must be authorized before saving.</span>
+          </div>
+          <button class="btn btn-flickr" id="btnFlickrAuth" onclick="authorizeFlickr()" disabled>🔑 Authorize Flickr</button>
+        </div>
+        <div class="auth-block ok hidden" id="flickrAuthOk"></div>
+        <button class="btn btn-danger hidden" id="btnFlickrDisc" onclick="disconnectFlickr()">✕ Disconnect</button>
       </div>
     </div>
 
@@ -109,54 +155,153 @@ nav .spacer { flex: 1; }
     <div class="btn-row">
       <button class="btn btn-primary" id="btnSave" onclick="saveSettings()">💾 Save Settings</button>
     </div>
-
   </div>
 </div>
 
 <script>
-let currentSettings = null;
+let selectedTarget = null;
+let flickrAuthorized = false;
+
 async function load() {
   try {
-    const r = await fetch('/api/settings');
-    if (r.status === 400) { document.getElementById('loading').style.display = 'none'; document.getElementById('locked').style.display = 'block'; return; }
-    const d = await r.json();
-    currentSettings = d;
+    const [sr, fr] = await Promise.all([fetch('/api/settings'), fetch('/api/flickr/status').catch(() => null)]);
+    if (sr.status === 400 || sr.status === 403) {
+      const d = await sr.json().catch(() => ({}));
+      if (d.settingsEnabled === false || d.error === 'Settings locked') {
+        document.getElementById('loading').style.display = 'none'; document.getElementById('locked').style.display = 'block'; return;
+      }
+    }
+    const d = await sr.json();
     if (!d.settingsEnabled) { document.getElementById('loading').style.display = 'none'; document.getElementById('locked').style.display = 'block'; return; }
     document.getElementById('loading').style.display = 'none'; document.getElementById('settingsForm').style.display = 'block';
+
     document.getElementById('mainUrl').value = d.mainUrl || '';
-    document.getElementById('publicUrl').value = d.publicUrl || '';
     document.getElementById('syncInterval').value = d.syncIntervalMinutes || 5;
     document.getElementById('lockSettings').checked = !d.settingsEnabled;
     document.getElementById('disableDashboard').checked = !d.dashboardEnabled;
     document.getElementById('mainKeyMask').textContent = d.mainApiKey || '(not set)';
-    document.getElementById('publicKeyMask').textContent = d.publicApiKey || '(not set)';
+
+    // Sync target
+    selectedTarget = d.syncTarget || 'immich';
+    selectTarget(selectedTarget);
+    if (selectedTarget === 'immich') {
+      document.getElementById('publicUrl').value = d.publicUrl || '';
+      document.getElementById('publicKeyMask').textContent = d.publicApiKey || '(not set)';
+    } else {
+      document.getElementById('flickrApiKey').value = d.flickrApiKey || '';
+      document.getElementById('flickrSecretMask').textContent = d.flickrApiSecret || '(not set)';
+    }
+
+    if (fr && fr.ok) {
+      const fs = await fr.json();
+      flickrAuthorized = fs.authorized;
+      updateFlickrUI(fs);
+    }
   } catch(e) { document.getElementById('loading').innerHTML = '<div style="color:var(--red)">Failed to load: ' + e.message + '</div>'; }
 }
+
+function selectTarget(target) {
+  selectedTarget = target;
+  document.getElementById('targetImmich').classList.toggle('selected', target === 'immich');
+  document.getElementById('targetFlickr').classList.toggle('selected', target === 'flickr');
+  document.getElementById('immichDest').classList.toggle('hidden', target !== 'immich');
+  document.getElementById('flickrDest').classList.toggle('hidden', target !== 'flickr');
+}
+
+function updateFlickrUI(fs) {
+  flickrAuthorized = fs.authorized;
+  document.getElementById('flickrAuthBlock').classList.toggle('hidden', fs.authorized);
+  document.getElementById('flickrAuthOk').classList.toggle('hidden', !fs.authorized);
+  document.getElementById('btnFlickrDisc').classList.toggle('hidden', !fs.authorized);
+  if (fs.authorized) {
+    document.getElementById('flickrAuthOk').innerHTML = '✓ Connected as <strong>' + (fs.username || 'user') + '</strong> — ' + fs.albumsSynced + ' albums, ' + fs.photosUploaded + ' photos';
+  }
+  document.getElementById('btnFlickrAuth').disabled = !document.getElementById('flickrApiKey').value.trim() || !document.getElementById('flickrApiSecret').value.trim() || fs.authorized;
+}
+
 function toggleKey(inputId, btnId) {
   const inp = document.getElementById(inputId), btn = document.getElementById(btnId);
   if (inp.type === 'password') { inp.type = 'text'; inp.readOnly = false; btn.textContent = '🙈 Hide'; btn.style.borderColor = 'var(--accent)'; btn.style.color = 'var(--accent)'; }
   else { inp.type = 'password'; inp.readOnly = true; btn.textContent = '👁 Show'; btn.style.borderColor = 'var(--border)'; btn.style.color = 'var(--text-dim)'; }
 }
+
+async function authorizeFlickr() {
+  const key = document.getElementById('flickrApiKey').value.trim();
+  const secret = document.getElementById('flickrApiSecret').value.trim();
+  if (!key || !secret) { showMsg('error', 'Enter Flickr API key and secret first.'); return; }
+
+  try {
+    const r = await fetch('/api/flickr/authorize', { method: 'POST' });
+    const d = await r.json();
+    if (d.url) window.open(d.url, '_blank');
+    else showMsg('error', d.error || 'Failed to get authorization URL');
+
+    // Poll for completion
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      if (attempts++ > 60) { clearInterval(poll); return; }
+      const sr = await fetch('/api/flickr/status');
+      if (!sr.ok) return;
+      const fs = await sr.json();
+      if (fs.authorized) { clearInterval(poll); updateFlickrUI(fs); showMsg('success', '✓ Flickr authorized!'); }
+    }, 2000);
+  } catch(e) { showMsg('error', e.message); }
+}
+
+async function disconnectFlickr() {
+  if (!confirm('Disconnect Flickr? Synced photos will remain on Flickr.')) return;
+  try {
+    await fetch('/api/flickr/disconnect', { method: 'POST' });
+    flickrAuthorized = false;
+    updateFlickrUI({ authorized: false, username: '', albumsSynced: 0, photosUploaded: 0 });
+    showMsg('success', 'Flickr disconnected');
+  } catch(e) { showMsg('error', e.message); }
+}
+
 function showMsg(type, text) { const el = document.getElementById('msgBox'); el.className = 'msg ' + type; el.textContent = text; }
+
 async function saveSettings() {
   const btn = document.getElementById('btnSave'); btn.disabled = true; btn.textContent = 'Saving...'; showMsg('', '');
-  const mainKey = document.getElementById('mainApiKey'), pubKey = document.getElementById('publicApiKey');
+
+  if (!selectedTarget) { showMsg('error', 'Select a sync destination.'); btn.disabled = false; btn.textContent = '💾 Save Settings'; return; }
+  if (selectedTarget === 'flickr' && !flickrAuthorized) { showMsg('error', 'Complete Flickr authorization before saving.'); btn.disabled = false; btn.textContent = '💾 Save Settings'; return; }
+
+  const mainKey = document.getElementById('mainApiKey'), pubKey = document.getElementById('publicApiKey'), flickrKey = document.getElementById('flickrApiSecret');
   try {
-    const r = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+    const body = {
       mainUrl: document.getElementById('mainUrl').value.trim(),
-      mainApiKey: mainKey.readOnly ? '' : mainKey.value.trim(),
-      publicUrl: document.getElementById('publicUrl').value.trim(),
-      publicApiKey: pubKey.readOnly ? '' : pubKey.value.trim(),
+      mainApiKey: mainKey.type === 'password' ? '' : mainKey.value.trim(),
       syncInterval: parseInt(document.getElementById('syncInterval').value) || 5,
       lockSettings: document.getElementById('lockSettings').checked,
-      disableDashboard: document.getElementById('disableDashboard').checked
-    })});
+      disableDashboard: document.getElementById('disableDashboard').checked,
+      syncTarget: selectedTarget
+    };
+    if (selectedTarget === 'immich') {
+      body.publicUrl = document.getElementById('publicUrl').value.trim();
+      body.publicApiKey = pubKey.type === 'password' ? '' : pubKey.value.trim();
+    } else {
+      body.flickrApiKey = document.getElementById('flickrApiKey').value.trim();
+      body.flickrApiSecret = flickrKey.type === 'password' ? '' : flickrKey.value.trim();
+    }
+    const r = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json();
     if (r.ok && d.success) { showMsg('success', '✓ Settings saved successfully'); setTimeout(load, 1000); }
     else { showMsg('error', d.error || 'Save failed'); }
   } catch(e) { showMsg('error', 'Connection failed: ' + e.message); }
   btn.disabled = false; btn.textContent = '💾 Save Settings';
 }
+
+// Poll for Flickr auth status when on Flickr tab
+setInterval(async () => {
+  if (selectedTarget !== 'flickr' || flickrAuthorized) return;
+  try {
+    const r = await fetch('/api/flickr/status');
+    if (!r.ok) return;
+    const fs = await r.json();
+    if (fs.authorized) updateFlickrUI(fs);
+  } catch(e) {}
+}, 3000);
+
 load();
 </script>
 </body>
