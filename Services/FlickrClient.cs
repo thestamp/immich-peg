@@ -123,12 +123,12 @@ public class FlickrClient
             Console.WriteLine($"[FlickrFindPhotoset] Error: {errMsg}");
             return null;
         }
-        var doc = JsonDocument.Parse(FlickrXmlToJson(resp));
-        var photosets = doc.RootElement.GetProperty("photosets").GetProperty("photoset");
-        foreach (var ps in photosets.EnumerateArray())
+        // Parse XML directly for photoset list
+        var psMatches = System.Text.RegularExpressions.Regex.Matches(resp, @"<photoset\s+id=\"([^\"]+)\"[^>]*>\s*<title>([^<]+)</title>");
+        foreach (System.Text.RegularExpressions.Match m in psMatches)
         {
-            if (ps.GetProperty("title").GetProperty("_content").GetString() == title)
-                return ps.GetProperty("id").GetString();
+            if (m.Groups[2].Value.Trim() == title)
+                return m.Groups[1].Value;
         }
         return null;
     }
@@ -151,8 +151,9 @@ public class FlickrClient
             var errMsg = errMatch.Success ? errMatch.Groups[1].Value : resp;
             throw new Exception($"Flickr CreatePhotoset failed: {errMsg}");
         }
-        var doc = JsonDocument.Parse(FlickrXmlToJson(resp));
-        return doc.RootElement.GetProperty("photoset").GetProperty("id").GetString()!;
+        // Extract photoset id directly from XML
+        var idMatch = System.Text.RegularExpressions.Regex.Match(resp, @"photoset\s+id=\"([^\"]+)\"");
+        return idMatch.Groups[1].Value;
     }
 
     public async Task AddPhotoToPhotosetAsync(string photosetId, string photoId)
@@ -184,12 +185,13 @@ public class FlickrClient
                 ["per_page"] = "500"
             }, _accessToken, _accessTokenSecret);
             var resp = await _http.GetStringAsync($"{BaseUrl}/rest/?{sig}");
-            var doc = JsonDocument.Parse(FlickrXmlToJson(resp));
-            var ps = doc.RootElement.GetProperty("photoset");
-            var photos = ps.GetProperty("photo");
-            foreach (var p in photos.EnumerateArray())
-                ids.Add(p.GetProperty("id").GetString()!);
-            if (ps.GetProperty("pages").GetInt32() <= page) break;
+            // Parse photo IDs directly from XML
+            var photoMatches = System.Text.RegularExpressions.Regex.Matches(resp, @"<photo\s+id=\"([^\"]+)\"");
+            foreach (System.Text.RegularExpressions.Match m in photoMatches)
+                ids.Add(m.Groups[1].Value);
+            var pageMatch = System.Text.RegularExpressions.Regex.Match(resp, @"pages=\"(\d+)\"");
+            var totalPages = pageMatch.Success ? int.Parse(pageMatch.Groups[1].Value) : 1;
+            if (totalPages <= page) break;
             page++;
         }
         return ids;
