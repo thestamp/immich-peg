@@ -108,14 +108,13 @@ public class FlickrClient
 
     public async Task<string?> FindPhotosetByTitleAsync(string title)
     {
-        var sig = Sign("GET", $"{BaseUrl}/rest", new()
+        var sig = Sign("GET", $"{BaseUrl}/rest/", new()
         {
             ["method"] = "flickr.photosets.getList",
             ["api_key"] = _apiKey,
             ["oauth_token"] = _accessToken!
         }, _accessToken, _accessTokenSecret);
         var url = $"{BaseUrl}/rest/?{sig}";
-        Console.WriteLine($"[FlickrFindPhotoset] URL: {url}");
         var resp = await _http.GetStringAsync(url);
         var doc = JsonDocument.Parse(FlickrXmlToJson(resp));
         var photosets = doc.RootElement.GetProperty("photosets").GetProperty("photoset");
@@ -129,7 +128,7 @@ public class FlickrClient
 
     public async Task<string> CreatePhotosetAsync(string title, string primaryPhotoId)
     {
-        var sig = Sign("GET", $"{BaseUrl}/rest", new()
+        var sig = Sign("GET", $"{BaseUrl}/rest/", new()
         {
             ["method"] = "flickr.photosets.create",
             ["api_key"] = _apiKey,
@@ -138,7 +137,6 @@ public class FlickrClient
             ["primary_photo_id"] = primaryPhotoId
         }, _accessToken, _accessTokenSecret);
         var url = $"{BaseUrl}/rest/?{sig}";
-        Console.WriteLine($"[FlickrCreatePhotoset] URL: {url}");
         var resp = await _http.GetStringAsync(url);
         var doc = JsonDocument.Parse(FlickrXmlToJson(resp));
         return doc.RootElement.GetProperty("photoset").GetProperty("id").GetString()!;
@@ -146,7 +144,7 @@ public class FlickrClient
 
     public async Task AddPhotoToPhotosetAsync(string photosetId, string photoId)
     {
-        var sig = Sign("GET", $"{BaseUrl}/rest", new()
+        var sig = Sign("GET", $"{BaseUrl}/rest/", new()
         {
             ["method"] = "flickr.photosets.addPhoto",
             ["api_key"] = _apiKey,
@@ -163,7 +161,7 @@ public class FlickrClient
         int page = 1;
         while (true)
         {
-            var sig = Sign("GET", $"{BaseUrl}/rest", new()
+            var sig = Sign("GET", $"{BaseUrl}/rest/", new()
             {
                 ["method"] = "flickr.photosets.getPhotos",
                 ["api_key"] = _apiKey,
@@ -191,7 +189,7 @@ public class FlickrClient
         try
         {
             if (!HasAccessToken) return false;
-            var sig = Sign("GET", $"{BaseUrl}/rest", new()
+            var sig = Sign("GET", $"{BaseUrl}/rest/", new()
             {
                 ["method"] = "flickr.test.login",
                 ["api_key"] = _apiKey,
@@ -229,8 +227,6 @@ public class FlickrClient
                 .Select(k => $"{Uri.EscapeDataString(k.Key)}={Uri.EscapeDataString(k.Value)}"))));
 
         var signingKey = $"{Uri.EscapeDataString(_apiSecret)}&{Uri.EscapeDataString(tokenSecret ?? "")}";
-        Console.WriteLine($"[FlickrSign] apiSecret={_apiSecret} tokenSecret={tokenSecret} signingKey={signingKey}");
-        Console.WriteLine($"[FlickrSign] baseString={baseString}");
         using var hmac = new HMACSHA1(Encoding.UTF8.GetBytes(signingKey));
         oauth["oauth_signature"] = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(baseString)));
         allParams["oauth_signature"] = oauth["oauth_signature"];
