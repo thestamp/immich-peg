@@ -87,6 +87,7 @@ public class FlickrConfig
     public string AccessTokenSecret { get; set; } = "";
     public string UserId { get; set; } = "";
     public string Username { get; set; } = "";
+    public string RequestTokenSecret { get; set; } = "";
     public bool Enabled { get; set; }
 }
 

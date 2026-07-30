@@ -216,7 +216,9 @@ app.MapPost("/api/flickr/authorize", (SyncConfigService cfg, HttpContext http) =
 
     var client = new FlickrClient(config.Flickr.ApiKey, config.Flickr.ApiSecret);
     var callback = $"{http.Request.Scheme}://{http.Request.Host}/api/flickr/callback";
-    var url = client.GetAuthorizationUrl(callback);
+    var (url, requestTokenSecret) = client.GetAuthorizationUrl(callback);
+    config.Flickr.RequestTokenSecret = requestTokenSecret;
+    cfg.Save(config);
     return Results.Ok(new { url });
 });
 
@@ -226,7 +228,8 @@ app.MapGet("/api/flickr/callback", (SyncConfigService cfg, string oauth_token, s
     var client = new FlickrClient(config.Flickr.ApiKey, config.Flickr.ApiSecret);
     try
     {
-        var (token, tokenSecret, userId, username) = client.CompleteAuthorization(oauth_token, oauth_verifier);
+        var (token, tokenSecret, userId, username) = client.CompleteAuthorization(
+            oauth_token, oauth_verifier, config.Flickr.RequestTokenSecret);
         config.Flickr.AccessToken = token;
         config.Flickr.AccessTokenSecret = tokenSecret;
         config.Flickr.UserId = userId;

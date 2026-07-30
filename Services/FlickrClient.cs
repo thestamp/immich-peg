@@ -30,24 +30,25 @@ public class FlickrClient
 
     // ── OAuth 1.0a ────────────────────────────────────────────────
 
-    public string GetAuthorizationUrl(string callbackUrl)
+    public (string Url, string RequestTokenSecret) GetAuthorizationUrl(string callbackUrl)
     {
         var oauthCallback = callbackUrl; // Sign method handles encoding
         var sig = Sign("GET", $"{BaseUrl}/oauth/request_token", new() { ["oauth_callback"] = oauthCallback }, null, null);
         var resp = _http.GetStringAsync($"{BaseUrl}/oauth/request_token?{sig}").Result;
         var parsed = HttpUtility.ParseQueryString(resp);
         var oauthToken = parsed["oauth_token"]!;
-        return $"{BaseUrl}/oauth/authorize?oauth_token={oauthToken}&perms=write";
+        var oauthTokenSecret = parsed["oauth_token_secret"]!;
+        return ($"{BaseUrl}/oauth/authorize?oauth_token={oauthToken}&perms=write", oauthTokenSecret);
     }
 
     public (string AccessToken, string AccessTokenSecret, string UserId, string Username) CompleteAuthorization(
-        string oauthToken, string oauthVerifier)
+        string oauthToken, string oauthVerifier, string requestTokenSecret)
     {
         var sig = Sign("GET", $"{BaseUrl}/oauth/access_token", new()
         {
             ["oauth_token"] = oauthToken,
             ["oauth_verifier"] = oauthVerifier
-        }, null, null);
+        }, oauthToken, requestTokenSecret);
         var resp = _http.GetStringAsync($"{BaseUrl}/oauth/access_token?{sig}").Result;
         var parsed = HttpUtility.ParseQueryString(resp);
         return (
