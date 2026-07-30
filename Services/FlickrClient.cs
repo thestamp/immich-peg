@@ -32,7 +32,7 @@ public class FlickrClient
 
     public string GetAuthorizationUrl(string callbackUrl)
     {
-        var oauthCallback = Uri.EscapeDataString(callbackUrl);
+        var oauthCallback = callbackUrl; // Sign method handles encoding
         var sig = Sign("GET", $"{BaseUrl}/oauth/request_token", new() { ["oauth_callback"] = oauthCallback }, null, null);
         var resp = _http.GetStringAsync($"{BaseUrl}/oauth/request_token?{sig}").Result;
         var parsed = HttpUtility.ParseQueryString(resp);
@@ -225,8 +225,9 @@ public class FlickrClient
         var signingKey = $"{Uri.EscapeDataString(_apiSecret)}&{Uri.EscapeDataString(tokenSecret ?? "")}";
         using var hmac = new HMACSHA1(Encoding.UTF8.GetBytes(signingKey));
         oauth["oauth_signature"] = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(baseString)));
+        allParams["oauth_signature"] = oauth["oauth_signature"];
 
-        return string.Join("&", oauth.OrderBy(k => k.Key)
+        return string.Join("&", allParams.OrderBy(k => k.Key)
             .Select(k => $"{Uri.EscapeDataString(k.Key)}={Uri.EscapeDataString(k.Value)}"));
     }
 
