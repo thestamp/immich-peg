@@ -37,7 +37,7 @@ public class FlickrClient
         var parsed = HttpUtility.ParseQueryString(resp);
         var oauthToken = parsed["oauth_token"]!;
         var oauthTokenSecret = parsed["oauth_token_secret"]!;
-        return ($"{BaseUrl}/oauth/authorize?oauth_token={oauthToken}&perms=write", oauthTokenSecret);
+        return ($"{BaseUrl}/oauth/authorize?oauth_token={oauthToken}&perms=delete", oauthTokenSecret);
     }
 
     public (string AccessToken, string AccessTokenSecret, string UserId, string Username) CompleteAuthorization(
@@ -116,7 +116,7 @@ public class FlickrClient
         return null;
     }
 
-    public async Task<string> CreatePhotosetAsync(string title, string primaryPhotoId)
+    public async Task<string> CreatePhotosetAsync(string title, string primaryPhotoId, string? description = null)
     {
         var sig = Sign("GET", $"{BaseUrl}/rest/", new()
         {
@@ -124,7 +124,8 @@ public class FlickrClient
             ["api_key"] = _apiKey,
             ["oauth_token"] = _accessToken!,
             ["title"] = title,
-            ["primary_photo_id"] = primaryPhotoId
+            ["primary_photo_id"] = primaryPhotoId,
+            ["description"] = description ?? ""
         }, _accessToken, _accessTokenSecret);
         var resp = await _http.GetStringAsync($"{BaseUrl}/rest/?{sig}");
         var doc = XDocument.Parse(resp);
@@ -136,6 +137,26 @@ public class FlickrClient
             throw new Exception(err?.Attribute("msg")?.Value ?? "Unknown error creating photoset");
         }
         return id;
+    }
+
+    public async Task EditPhotosetMetaAsync(string photosetId, string title, string? description = null)
+    {
+        var sig = Sign("GET", $"{BaseUrl}/rest/", new()
+        {
+            ["method"] = "flickr.photosets.editMeta",
+            ["api_key"] = _apiKey,
+            ["oauth_token"] = _accessToken!,
+            ["photoset_id"] = photosetId,
+            ["title"] = title,
+            ["description"] = description ?? ""
+        }, _accessToken, _accessTokenSecret);
+        var resp = await _http.GetStringAsync($"{BaseUrl}/rest/?{sig}");
+        if (!resp.Contains("stat=\"ok\""))
+        {
+            var doc = XDocument.Parse(resp);
+            var err = doc.Descendants("err").FirstOrDefault();
+            throw new Exception(err?.Attribute("msg")?.Value ?? "Unknown error editing photoset");
+        }
     }
 
     public async Task AddPhotoToPhotosetAsync(string photosetId, string photoId)
@@ -179,6 +200,36 @@ public class FlickrClient
             page++;
         }
         return ids;
+    }
+
+    public async Task<HashSet<string>> GetPhotosetPhotoTitlesAsync(string photosetId)
+    {
+        var titles = new HashSet<string>();
+        int page = 1;
+        while (true)
+        {
+            var sig = Sign("GET", $"{BaseUrl}/rest/", new()
+            {
+                ["method"] = "flickr.photosets.getPhotos",
+                ["api_key"] = _apiKey,
+                ["oauth_token"] = _accessToken!,
+                ["photoset_id"] = photosetId,
+                ["page"] = page.ToString(),
+                ["per_page"] = "500"
+            }, _accessToken, _accessTokenSecret);
+            var resp = await _http.GetStringAsync($"{BaseUrl}/rest/?{sig}");
+            var doc = XDocument.Parse(resp);
+            foreach (var photo in doc.Descendants("photo"))
+            {
+                var title = photo.Attribute("title")?.Value;
+                if (title != null) titles.Add(title);
+            }
+            var ps = doc.Descendants("photoset").FirstOrDefault();
+            var pages = int.Parse(ps?.Attribute("pages")?.Value ?? "1");
+            if (pages <= page) break;
+            page++;
+        }
+        return titles;
     }
 
     public async Task<bool> PingAsync()

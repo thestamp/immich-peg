@@ -70,6 +70,17 @@ public class ImmichClient : IDisposable
         return await JsonSerializer.DeserializeAsync<JsonElement>(await resp.Content.ReadAsStreamAsync());
     }
 
+    public async Task UpdateAlbumDescriptionAsync(string albumId, string description)
+    {
+        var payload = JsonSerializer.Serialize(new { description });
+        var request = new HttpRequestMessage(HttpMethod.Patch, $"albums/{albumId}")
+        {
+            Content = new StringContent(payload, Encoding.UTF8, "application/json")
+        };
+        var resp = await _http.SendAsync(request);
+        resp.EnsureSuccessStatusCode();
+    }
+
     public async Task<JsonElement> CreateAlbumAsync(string name, string description = "")
     {
         var payload = JsonSerializer.Serialize(new { albumName = name, description });
