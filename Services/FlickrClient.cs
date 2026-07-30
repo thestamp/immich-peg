@@ -114,7 +114,9 @@ public class FlickrClient
             ["api_key"] = _apiKey,
             ["oauth_token"] = _accessToken!
         }, _accessToken, _accessTokenSecret);
-        var resp = await _http.GetStringAsync($"{BaseUrl}/rest/?{sig}");
+        var url = $"{BaseUrl}/rest/?{sig}";
+        Console.WriteLine($"[FlickrFindPhotoset] URL: {url}");
+        var resp = await _http.GetStringAsync(url);
         var doc = JsonDocument.Parse(FlickrXmlToJson(resp));
         var photosets = doc.RootElement.GetProperty("photosets").GetProperty("photoset");
         foreach (var ps in photosets.EnumerateArray())
@@ -135,7 +137,9 @@ public class FlickrClient
             ["title"] = title,
             ["primary_photo_id"] = primaryPhotoId
         }, _accessToken, _accessTokenSecret);
-        var resp = await _http.GetStringAsync($"{BaseUrl}/rest/?{sig}");
+        var url = $"{BaseUrl}/rest/?{sig}";
+        Console.WriteLine($"[FlickrCreatePhotoset] URL: {url}");
+        var resp = await _http.GetStringAsync(url);
         var doc = JsonDocument.Parse(FlickrXmlToJson(resp));
         return doc.RootElement.GetProperty("photoset").GetProperty("id").GetString()!;
     }
