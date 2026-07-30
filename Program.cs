@@ -78,7 +78,7 @@ app.MapPost("/api/sync/flickr", async (SyncConfigService cfg) =>
         config.Flickr.AccessToken, config.Flickr.AccessTokenSecret);
     var engine = new FlickrSyncEngine(cfg, flickr, config);
 
-    _ = Task.Run(async () => { try { await engine.RunSyncAsync(); } catch { } });
+    _ = Task.Run(async () => { try { await engine.RunSyncAsync(); } catch (Exception ex) { Console.WriteLine($"[FlickrSync] Error: {ex}"); } });
     return Results.Ok(new { status = "started", action = "flickr" });
 });
 
@@ -163,8 +163,8 @@ app.MapPost("/api/settings", async (SyncConfigService cfg, SetupRequest req) =>
     }
     else // flickr
     {
-        if (!string.IsNullOrWhiteSpace(req.FlickrApiKey)) config.Flickr.ApiKey = req.FlickrApiKey.Trim();
-        if (!string.IsNullOrWhiteSpace(req.FlickrApiSecret)) config.Flickr.ApiSecret = req.FlickrApiSecret.Trim();
+        if (!string.IsNullOrWhiteSpace(req.FlickrApiKey) && !req.FlickrApiKey.Contains("\u2022")) config.Flickr.ApiKey = req.FlickrApiKey.Trim();
+        if (!string.IsNullOrWhiteSpace(req.FlickrApiSecret) && !req.FlickrApiSecret.Contains("\u2022")) config.Flickr.ApiSecret = req.FlickrApiSecret.Trim();
         if (string.IsNullOrWhiteSpace(config.Flickr.ApiKey) || string.IsNullOrWhiteSpace(config.Flickr.ApiSecret))
             return Results.BadRequest(new { error = "Flickr API key and secret are required" });
         if (string.IsNullOrWhiteSpace(config.Flickr.AccessToken))

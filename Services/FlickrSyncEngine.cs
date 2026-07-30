@@ -26,7 +26,9 @@ public class FlickrSyncEngine
 
         try
         {
+            Console.WriteLine($"[FlickrSync] Fetching shared albums from {_config.Main.Url}...");
             var sharedAlbums = await _immich.GetAllAlbumsAsync(true);
+            Console.WriteLine($"[FlickrSync] Found {sharedAlbums.Count} shared albums");
 
             foreach (var album in sharedAlbums)
             {
@@ -44,6 +46,7 @@ public class FlickrSyncEngine
                 }
             }
         }
+        catch (Exception ex) { Console.WriteLine($"[FlickrSync] Fatal error: {ex}"); }
         finally
         {
             _configService.Save(_config);
@@ -88,6 +91,7 @@ public class FlickrSyncEngine
             {
                 var assetId = asset.GetProperty("id").GetString()!;
                 var assetData = await _immich.DownloadAssetAsync(assetId);
+                Console.WriteLine($"[FlickrSync] Downloaded {assetId}: {assetData.Length} bytes");
 
                 var title = Path.GetFileNameWithoutExtension(originalName);
                 var photoId = await _flickr.UploadPhotoAsync(assetData, originalName, title,
@@ -112,7 +116,7 @@ public class FlickrSyncEngine
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Flickr upload failed: {originalName}: {ex.Message}");
+                Console.Error.WriteLine($"Flickr upload failed: {originalName}: {ex}");
             }
         }
 

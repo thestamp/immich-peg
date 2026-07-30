@@ -188,7 +188,7 @@ async function load() {
       document.getElementById('publicUrl').value = d.publicUrl || '';
       document.getElementById('publicKeyMask').textContent = d.publicApiKey || '(not set)';
     } else {
-      document.getElementById('flickrApiKey').value = d.flickrApiKey || '';
+      // flickrApiKey intentionally NOT set - keeps input empty to avoid sending masked value on save
       document.getElementById('flickrSecretMask').textContent = d.flickrApiSecret || '(not set)';
     }
 

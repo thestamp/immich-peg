@@ -152,7 +152,9 @@ public class ImmichClient : IDisposable
     {
         var resp = await _http.GetAsync($"assets/{assetId}/original");
         resp.EnsureSuccessStatusCode();
-        return await resp.Content.ReadAsByteArrayAsync();
+        using var ms = new MemoryStream();
+        await resp.Content.CopyToAsync(ms);
+        return ms.ToArray();
     }
 
     public async Task<List<JsonElement>> GetAlbumSharesAsync()

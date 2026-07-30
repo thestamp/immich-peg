@@ -79,25 +79,26 @@ public class FlickrClient
         };
 
         // Sign and add OAuth params
-        var sig = Sign("POST", UploadUrl, oauthParams, _accessToken, _accessTokenSecret, false);
+        var sig = Sign("POST", UploadUrl, oauthParams, _accessToken, _accessTokenSecret);
         var sigParams = HttpUtility.ParseQueryString(sig);
         foreach (var key in sigParams.AllKeys)
             oauthParams[key!] = sigParams[key!]!;
 
-        // Build query string on URL
+        // Build query string on URL — oauth_consumer_key serves as the api_key
         var queryParts = new List<string>();
-        foreach (var kv in oauthParams.Where(k => k.Key.StartsWith("oauth_")))
+        foreach (var kv in oauthParams.OrderBy(k => k.Key))
             queryParts.Add($"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value)}");
-        queryParts.Add($"title={Uri.EscapeDataString(title)}");
-        queryParts.Add($"description={Uri.EscapeDataString(description ?? "")}");
-        queryParts.Add("is_public=0");
-        queryParts.Add("is_friend=0");
-        queryParts.Add("is_family=0");
+        // api_key is handled by oauth_consumer_key
 
         var url = $"{UploadUrl}?{string.Join("&", queryParts)}";
         var resp = await _http.PostAsync(url, content);
-        resp.EnsureSuccessStatusCode();
         var xml = await resp.Content.ReadAsStringAsync();
+        if (!resp.IsSuccessStatusCode || !xml.Contains("<photoid>"))
+        {
+            var errStart = xml.IndexOf("<err ");
+            var errMsg = errStart >= 0 ? xml[errStart..xml.IndexOf("/>", errStart)] : $"HTTP {resp.StatusCode}";
+            throw new Exception($"Flickr upload rejected: {errMsg}");
+        }
         var idStart = xml.IndexOf("<photoid>") + 9;
         var idEnd = xml.IndexOf("</photoid>");
         return xml[idStart..idEnd];
