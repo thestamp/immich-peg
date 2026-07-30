@@ -226,10 +226,6 @@ function toggleKey(inputId, btnId) {
 }
 
 async function authorizeFlickr() {
-  const key = document.getElementById('flickrApiKey').value.trim();
-  const secret = document.getElementById('flickrApiSecret').value.trim();
-  if (!key || !secret) { showMsg('error', 'Enter Flickr API key and secret first.'); return; }
-
   try {
     const r = await fetch('/api/flickr/authorize', { method: 'POST' });
     const d = await r.json();
