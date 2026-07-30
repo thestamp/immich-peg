@@ -230,6 +230,7 @@ public class FlickrClient
 
         var signingKey = $"{Uri.EscapeDataString(_apiSecret)}&{Uri.EscapeDataString(tokenSecret ?? "")}";
         Console.WriteLine($"[FlickrSign] apiSecret={_apiSecret} tokenSecret={tokenSecret} signingKey={signingKey}");
+        Console.WriteLine($"[FlickrSign] baseString={baseString}");
         using var hmac = new HMACSHA1(Encoding.UTF8.GetBytes(signingKey));
         oauth["oauth_signature"] = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(baseString)));
         allParams["oauth_signature"] = oauth["oauth_signature"];
