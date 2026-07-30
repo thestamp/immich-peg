@@ -116,6 +116,13 @@ public class FlickrClient
         }, _accessToken, _accessTokenSecret);
         var url = $"{BaseUrl}/rest/?{sig}";
         var resp = await _http.GetStringAsync(url);
+        if (resp.Contains("stat=\"fail\""))
+        {
+            var errMatch = System.Text.RegularExpressions.Regex.Match(resp, "msg=\"([^\"]+)\"");
+            var errMsg = errMatch.Success ? errMatch.Groups[1].Value : resp;
+            Console.WriteLine($"[FlickrFindPhotoset] Error: {errMsg}");
+            return null;
+        }
         var doc = JsonDocument.Parse(FlickrXmlToJson(resp));
         var photosets = doc.RootElement.GetProperty("photosets").GetProperty("photoset");
         foreach (var ps in photosets.EnumerateArray())
@@ -138,6 +145,12 @@ public class FlickrClient
         }, _accessToken, _accessTokenSecret);
         var url = $"{BaseUrl}/rest/?{sig}";
         var resp = await _http.GetStringAsync(url);
+        if (resp.Contains("stat=\"fail\""))
+        {
+            var errMatch = System.Text.RegularExpressions.Regex.Match(resp, "msg=\"([^\"]+)\"");
+            var errMsg = errMatch.Success ? errMatch.Groups[1].Value : resp;
+            throw new Exception($"Flickr CreatePhotoset failed: {errMsg}");
+        }
         var doc = JsonDocument.Parse(FlickrXmlToJson(resp));
         return doc.RootElement.GetProperty("photoset").GetProperty("id").GetString()!;
     }
