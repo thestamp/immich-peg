@@ -64,10 +64,13 @@ public class FlickrClient
     public async Task<string> UploadPhotoAsync(byte[] imageData, string filename, string title, string? description = null)
     {
         using var content = new MultipartFormDataContent();
+
+        // Add photo
         var imageContent = new ByteArrayContent(imageData);
         imageContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
         content.Add(imageContent, "photo", filename);
 
+        // All params to sign (everything except photo)
         var oauthParams = new Dictionary<string, string>
         {
             ["oauth_token"] = _accessToken!,
@@ -84,14 +87,11 @@ public class FlickrClient
         foreach (var key in sigParams.AllKeys)
             oauthParams[key!] = sigParams[key!]!;
 
-        // Build query string on URL — oauth_consumer_key serves as the api_key
-        var queryParts = new List<string>();
-        foreach (var kv in oauthParams.OrderBy(k => k.Key))
-            queryParts.Add($"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value)}");
-        // api_key is handled by oauth_consumer_key
+        // Add ALL params as form fields (not URL query params)
+        foreach (var kv in oauthParams)
+            content.Add(new StringContent(kv.Value), kv.Key);
 
-        var url = $"{UploadUrl}?{string.Join("&", queryParts)}";
-        var resp = await _http.PostAsync(url, content);
+        var resp = await _http.PostAsync(UploadUrl, content);
         var xml = await resp.Content.ReadAsStringAsync();
         if (!resp.IsSuccessStatusCode || !xml.Contains("<photoid>"))
         {
