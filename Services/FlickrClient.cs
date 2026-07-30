@@ -15,7 +15,7 @@ public class FlickrClient
     private readonly string? _accessTokenSecret;
 
     private const string BaseUrl = "https://www.flickr.com/services";
-    private const string UploadUrl = "https://up.flickr.com/services/upload/";
+    private const string UploadUrl = "https://api.flickr.com/services/upload/";
 
     public FlickrClient(string apiKey, string apiSecret, string? accessToken = null, string? accessTokenSecret = null)
     {
