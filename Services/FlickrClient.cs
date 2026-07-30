@@ -252,54 +252,126 @@ public class FlickrClient
 
     private static string FlickrXmlToJson(string xml)
     {
-        // Minimal XML-to-JSON for Flickr's flat response format
         var sb = new StringBuilder();
-        sb.Append('{');
         var tagStack = new Stack<string>();
+        var attrStack = new Stack<bool>(); // tracks if current object has had first property
+        attrStack.Push(true); // root level
+        sb.Append('{');
         int i = 0;
         while (i < xml.Length)
         {
-            if (xml[i] == '<' && (i + 1 < xml.Length) && xml[i + 1] != '/' && xml[i + 1] != '?')
+            if (xml[i] == '<')
             {
-                var end = xml.IndexOf('>', i);
-                var tag = xml[(i + 1)..end];
-                var spaceIdx = tag.IndexOf(' ');
-                if (spaceIdx > 0) tag = tag[..spaceIdx];
-                i = end + 1;
-                if (i < xml.Length && xml[i] != '<')
+                // Check for closing tag
+                if (i + 1 < xml.Length && xml[i + 1] == '/')
                 {
-                    var closeStart = xml.IndexOf($"</{tag}>", i);
-                    var value = xml[i..closeStart].Trim();
-                    if (tagStack.Count > 0) sb.Append(',');
-                    sb.Append($"\"{tag}\":\"{EscapeJson(value)}\"");
-                    i = closeStart + tag.Length + 3;
+                    var end = xml.IndexOf('>', i);
+                    var tag = xml[(i + 2)..end].Trim();
+                    i = end + 1;
+                    if (tagStack.Count > 0 && tagStack.Peek() == tag)
+                    {
+                        tagStack.Pop();
+                        attrStack.Pop();
+                        sb.Append('}');
+                    }
                 }
+                // Skip XML declaration / processing instruction
+                else if (i + 1 < xml.Length && xml[i + 1] == '?')
+                {
+                    var end = xml.IndexOf("?>", i);
+                    i = (end >= 0 ? end : i + 1) + 2;
+                }
+                // Opening tag
                 else
                 {
-                    if (tagStack.Count > 0) sb.Append(',');
-                    sb.Append($"\"{tag}\":{{");
-                    tagStack.Push(tag);
-                }
-            }
-            else if (xml[i] == '<' && xml[i + 1] == '/')
-            {
-                var end = xml.IndexOf('>', i);
-                var tag = xml[(i + 2)..end];
-                i = end + 1;
-                if (tagStack.Count > 0 && tagStack.Peek() == tag)
-                {
-                    tagStack.Pop();
-                    sb.Append('}');
+                    var end = xml.IndexOf('>', i);
+                    var tagContent = xml[(i + 1)..end];
+                    var spaceIdx = tagContent.IndexOf(' ');
+                    var tagName = spaceIdx > 0 ? tagContent[..spaceIdx] : tagContent;
+                    
+                    // Check if self-closing
+                    bool selfClose = tagContent.EndsWith("/");
+                    if (selfClose) tagName = tagName.TrimEnd('/').Trim();
+                    
+                    // Parse attributes
+                    var attrs = new Dictionary<string, string>();
+                    if (spaceIdx > 0)
+                    {
+                        var attrStr = selfClose ? tagContent[(spaceIdx + 1)..^1].Trim() : tagContent[(spaceIdx + 1)..];
+                        var matches = System.Text.RegularExpressions.Regex.Matches(attrStr, "(\w+)=\"([^\"]*)\"");
+                        foreach (System.Text.RegularExpressions.Match m in matches)
+                            attrs[m.Groups[1].Value] = m.Groups[2].Value;
+                    }
+                    
+                    i = end + 1;
+                    
+                    // Check for text content
+                    if (!selfClose && i < xml.Length && xml[i] != '<')
+                    {
+                        var closeTag = $"</{tagName}>";
+                        var closeIdx = xml.IndexOf(closeTag, i);
+                        var value = xml[i..closeIdx].Trim();
+                        if (tagStack.Count > 0 && !attrStack.Peek()) sb.Append(',');
+                        sb.Append($"\"{tagName}\":"");
+                        if (attrs.Count > 0)
+                        {
+                            sb.Append('{');
+                            bool first = true;
+                            if (!string.IsNullOrEmpty(value))
+                            {
+                                sb.Append($"\"_content\":\"{EscapeJson(value)}\"");
+                                first = false;
+                            }
+                            foreach (var a in attrs)
+                            {
+                                if (!first) sb.Append(',');
+                                sb.Append($"\"{a.Key}\":\"{EscapeJson(a.Value)}\"");
+                                first = false;
+                            }
+                            sb.Append('}');
+                        }
+                        else
+                        {
+                            sb.Append($"\"{EscapeJson(value)}\"");
+                        }
+                        i = closeIdx + tagName.Length + 3;
+                        if (i < xml.Length && tagStack.Count > 0) attrStack.Pop();
+                        attrStack.Push(false);
+                    }
+                    else
+                    {
+                        if (tagStack.Count > 0) sb.Append(',');
+                        sb.Append($"\"{tagName}\":");
+                        
+                        if (attrs.Count > 0 || selfClose)
+                        {
+                            sb.Append('{');
+                            bool first = true;
+                            foreach (var a in attrs)
+                            {
+                                if (!first) sb.Append(',');
+                                sb.Append($"\"{a.Key}\":\"{EscapeJson(a.Value)}\"");
+                                first = false;
+                            }
+                            sb.Append('}');
+                            if (!selfClose) tagStack.Push(tagName);
+                            if (!selfClose) attrStack.Push(true);
+                        }
+                        else
+                        {
+                            sb.Append('{');
+                            if (!selfClose) tagStack.Push(tagName);
+                            if (!selfClose) attrStack.Push(true);
+                        }
+                    }
                 }
             }
             else i++;
         }
-        // Close any unclosed objects
         while (tagStack.Count > 0) { sb.Append('}'); tagStack.Pop(); }
         sb.Append('}');
         return sb.ToString();
     }
-
     private static string EscapeJson(string s)
         => s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r");
 }
