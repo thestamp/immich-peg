@@ -49,6 +49,7 @@ app.MapGet("/api/dashboard", async (SyncConfigService cfg) =>
                 var albumId = album.GetProperty("id").GetString()!;
                 var albumName = album.GetProperty("albumName").GetString()!;
                 var assetCount = album.GetProperty("assetCount").GetInt32();
+                if (assetCount == 0) continue; // skip empty shared albums
                 var flickrAlbumId = config.FlickredAlbums.TryGetValue(albumId, out var fid) ? fid : null;
                 var syncedCount = flickrAlbumId != null ? assetCount : 0;
 
