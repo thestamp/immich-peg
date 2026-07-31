@@ -49,8 +49,8 @@ app.MapGet("/api/dashboard", async (SyncConfigService cfg) =>
                 var albumId = album.GetProperty("id").GetString()!;
                 var albumName = album.GetProperty("albumName").GetString()!;
                 var assetCount = album.GetProperty("assetCount").GetInt32();
-                var syncedCount = 0;
                 var flickrAlbumId = config.FlickredAlbums.TryGetValue(albumId, out var fid) ? fid : null;
+                var syncedCount = flickrAlbumId != null ? assetCount : 0;
 
                 albumStatuses.Add(new AlbumSyncStatus
                 {
