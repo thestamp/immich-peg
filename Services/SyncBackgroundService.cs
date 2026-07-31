@@ -5,7 +5,7 @@ public class SyncBackgroundService : BackgroundService
     private readonly SyncConfigService _cfg;
     private readonly ILogger<SyncBackgroundService> _log;
 
-    public static bool IsRunning { get; private set; }
+    public static bool IsRunning { get; set; }
 
     public SyncBackgroundService(SyncConfigService cfg, ILogger<SyncBackgroundService> log)
     {
