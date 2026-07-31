@@ -16,56 +16,92 @@ static string MaskKey(string key) =>
     key.Length <= 8 ? new string('\u2022', key.Length) :
     key[..4] + new string('\u2022', Math.Min(8, key.Length - 8)) + key[^4..];
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 
 // ── Dashboard ───────────────────────────────────────────────────
 
-app.MapGet("/api/dashboard", async (SyncConfigService cfg, [FromServices] SyncEngine? engine) =>
+app.MapGet("/api/dashboard", async (SyncConfigService cfg) =>
 {
     var config = cfg.Load();
     if (!config.SetupComplete) return Results.Ok(new { setupComplete = false });
     if (!config.DashboardEnabled) return Results.Json(new { error = "Dashboard disabled" }, statusCode: 403);
 
-    var inst = HttpContextHelper.GetOrCreateEngine(cfg, ref engine, app.Services);
-    var data = await inst.GetDashboardAsync();
-    return Results.Ok(data);
+    var health = new Dictionary<string, bool>();
+    try
+    {
+        using var immich = new ImmichClient(config.Main.Url, config.Main.ApiKey);
+        health["main"] = await immich.PingAsync();
+    }
+    catch { health["main"] = false; }
+
+    // Build album statuses
+    var albumStatuses = new List<AlbumSyncStatus>();
+    if (config.SyncTarget == "flickr" && !string.IsNullOrEmpty(config.Flickr.AccessToken))
+    {
+        try
+        {
+            using var immich = new ImmichClient(config.Main.Url, config.Main.ApiKey);
+            var sharedAlbums = await immich.GetAllAlbumsAsync(true);
+            config.TotalSharedAlbums = sharedAlbums.Count;
+
+            foreach (var album in sharedAlbums)
+            {
+                var albumId = album.GetProperty("id").GetString()!;
+                var albumName = album.GetProperty("albumName").GetString()!;
+                var assetCount = album.GetProperty("assetCount").GetInt32();
+                var syncedCount = 0;
+                var flickrAlbumId = config.FlickredAlbums.TryGetValue(albumId, out var fid) ? fid : null;
+
+                albumStatuses.Add(new AlbumSyncStatus
+                {
+                    AlbumId = albumId,
+                    AlbumName = albumName,
+                    AssetCount = assetCount,
+                    SyncedCount = syncedCount,
+                    FlickrAlbumId = flickrAlbumId
+                });
+            }
+
+            config.TotalSyncedAlbums = config.FlickredAlbums.Count;
+            cfg.Save(config);
+        }
+        catch { }
+    }
+
+    return Results.Ok(new DashboardData
+    {
+        SetupComplete = config.SetupComplete,
+        SyncIntervalMinutes = config.SyncIntervalMinutes,
+        LastSync = config.LastSync,
+        LastSyncStatus = config.LastSyncStatus,
+        LastSyncMessage = config.LastSyncMessage,
+        SyncActive = SyncBackgroundService.IsRunning,
+        SettingsEnabled = config.SettingsEnabled,
+        DashboardEnabled = config.DashboardEnabled,
+        TotalSharedAlbums = config.TotalSharedAlbums,
+        TotalSyncedAlbums = config.FlickredAlbums.Count,
+        TotalAssetsCopiedEver = config.FlickrPhotosUploaded,
+        TotalAssetsDeletedEver = config.FlickrPhotosDeleted,
+        TotalAlbumsRemovedEver = config.AlbumsRemoved,
+        SyncedAlbums = config.SyncedAlbums.Values.ToList(),
+        AlbumStatuses = albumStatuses,
+        RecentAssets = config.RecentAssets.Take(20).ToList(),
+        Health = health,
+        SyncTarget = config.SyncTarget,
+        HasPublicDest = !string.IsNullOrWhiteSpace(config.Public.Url),
+        Flickr = new FlickrStatus
+        {
+            Configured = !string.IsNullOrEmpty(config.Flickr.ApiKey),
+            Authorized = !string.IsNullOrEmpty(config.Flickr.AccessToken),
+            Username = config.Flickr.Username,
+            Enabled = config.Flickr.Enabled,
+            AlbumsSynced = config.FlickrAlbumsSynced,
+            PhotosUploaded = config.FlickrPhotosUploaded
+        }
+    });
 });
 
 // ── Sync triggers ───────────────────────────────────────────────
-
-app.MapPost("/api/sync/publish", async (SyncConfigService cfg, [FromServices] SyncEngine? engine) =>
-{
-    var config = cfg.Load();
-    if (!config.SetupComplete) return Results.BadRequest(new { error = "Not set up" });
-    if (config.SyncTarget != "immich") return Results.BadRequest(new { error = "Sync target is not public Immich" });
-    if (string.IsNullOrWhiteSpace(config.Public.Url)) return Results.BadRequest(new { error = "Public Immich not configured" });
-
-    var inst = HttpContextHelper.GetOrCreateEngine(cfg, ref engine, app.Services);
-    if (inst.IsRunning) inst.Cancel(); await Task.Delay(500);
-
-    var newEngine = HttpContextHelper.CreateEngine(cfg, app.Services);
-    HttpContextHelper.StoreEngine(app.Services, newEngine);
-
-    _ = Task.Run(async () => { try { await newEngine.RunPublishAsync(); } catch { } });
-    return Results.Ok(new { status = "started", action = "publish" });
-});
-
-app.MapPost("/api/sync/assets", async (SyncConfigService cfg, [FromServices] SyncEngine? engine) =>
-{
-    var config = cfg.Load();
-    if (!config.SetupComplete) return Results.BadRequest(new { error = "Not set up" });
-    if (config.SyncTarget != "immich") return Results.BadRequest(new { error = "Sync target is not public Immich" });
-    if (string.IsNullOrWhiteSpace(config.Public.Url)) return Results.BadRequest(new { error = "Public Immich not configured" });
-
-    var inst = HttpContextHelper.GetOrCreateEngine(cfg, ref engine, app.Services);
-    if (inst.IsRunning) inst.Cancel(); await Task.Delay(500);
-
-    var newEngine = HttpContextHelper.CreateEngine(cfg, app.Services);
-    HttpContextHelper.StoreEngine(app.Services, newEngine);
-
-    _ = Task.Run(async () => { try { await newEngine.RunAssetsAsync(); } catch { } });
-    return Results.Ok(new { status = "started", action = "assets" });
-});
 
 app.MapPost("/api/sync/flickr", async (SyncConfigService cfg) =>
 {
@@ -78,15 +114,36 @@ app.MapPost("/api/sync/flickr", async (SyncConfigService cfg) =>
         config.Flickr.AccessToken, config.Flickr.AccessTokenSecret);
     var engine = new FlickrSyncEngine(cfg, flickr, config);
 
-    _ = Task.Run(async () => { try { await engine.RunSyncAsync(); } catch (Exception ex) { Console.WriteLine($"[FlickrSync] Error: {ex}"); } });
-    return Results.Ok(new { status = "started", action = "flickr" });
-});
+    _ = Task.Run(async () => {
+        try
+        {
+            SyncBackgroundService.IsRunning = true;
+            var c = cfg.Load();
+            c.LastSyncStatus = "running";
+            c.LastSync = DateTime.UtcNow.ToString("o");
+            cfg.Save(c);
 
-app.MapPost("/api/sync/stop", ([FromServices] SyncConfigService cfg) =>
-{
-    var engine = app.Services.GetService<SyncEngine>();
-    if (engine?.IsRunning == true) { engine.Cancel(); return Results.Ok(new { status = "cancelled" }); }
-    return Results.Ok(new { status = "nothing_to_cancel" });
+            var stats = await engine.RunSyncAsync();
+
+            c = cfg.Load();
+            c.LastSyncStatus = "ok";
+            c.LastSync = DateTime.UtcNow.ToString("o");
+            c.LastSyncMessage = $"Albums: {stats["albums_synced"]}, Added: {stats["photos_added"]}, Deleted: {stats["photos_deleted"]}, Skipped: {stats["photos_skipped"]}";
+            cfg.Save(c);
+        }
+        catch (Exception ex)
+        {
+            var c = cfg.Load();
+            c.LastSyncStatus = "error";
+            c.LastSyncMessage = ex.Message;
+            cfg.Save(c);
+        }
+        finally
+        {
+            SyncBackgroundService.IsRunning = false;
+        }
+    });
+    return Results.Ok(new { status = "started", action = "flickr" });
 });
 
 // ── Setup ───────────────────────────────────────────────────────
@@ -116,19 +173,18 @@ app.MapPost("/api/setup", async (SyncConfigService cfg, SetupRequest req) =>
             return Results.BadRequest(new { error = "Public Immich API key is required" });
         config.Public.Url = req.PublicUrl.TrimEnd('/');
         config.Public.ApiKey = req.PublicApiKey.Trim();
-        config.Flickr = new FlickrConfig(); // clear Flickr when choosing Immich
+        config.Flickr = new FlickrConfig();
     }
-    else // flickr
+    else
     {
         if (string.IsNullOrWhiteSpace(req.FlickrApiKey) || string.IsNullOrWhiteSpace(req.FlickrApiSecret))
             return Results.BadRequest(new { error = "Flickr API key and secret are required" });
         config.Flickr.ApiKey = req.FlickrApiKey.Trim();
         config.Flickr.ApiSecret = req.FlickrApiSecret.Trim();
-        // OAuth must already be completed before setup can finish
         if (string.IsNullOrWhiteSpace(config.Flickr.AccessToken))
             return Results.BadRequest(new { error = "Complete Flickr authorization before finishing setup" });
         config.Flickr.Enabled = true;
-        config.Public = new InstanceConfig(); // clear public Immich when choosing Flickr
+        config.Public = new InstanceConfig();
     }
 
     config.SyncTarget = target;
@@ -157,20 +213,16 @@ app.MapPost("/api/settings", async (SyncConfigService cfg, SetupRequest req) =>
     {
         config.Public.Url = req.PublicUrl?.TrimEnd('/') ?? config.Public.Url;
         if (!string.IsNullOrWhiteSpace(req.PublicApiKey)) config.Public.ApiKey = req.PublicApiKey.Trim();
-        if (!string.IsNullOrWhiteSpace(config.Public.Url) && string.IsNullOrWhiteSpace(config.Public.ApiKey))
-            return Results.BadRequest(new { error = "Public Immich API key is required when URL is set" });
-        config.Flickr = new FlickrConfig(); // clear Flickr when switching to Immich
+        config.Flickr = new FlickrConfig();
     }
-    else // flickr
+    else
     {
         if (!string.IsNullOrWhiteSpace(req.FlickrApiKey) && !req.FlickrApiKey.Contains("\u2022")) config.Flickr.ApiKey = req.FlickrApiKey.Trim();
         if (!string.IsNullOrWhiteSpace(req.FlickrApiSecret) && !req.FlickrApiSecret.Contains("\u2022")) config.Flickr.ApiSecret = req.FlickrApiSecret.Trim();
-        if (string.IsNullOrWhiteSpace(config.Flickr.ApiKey) || string.IsNullOrWhiteSpace(config.Flickr.ApiSecret))
-            return Results.BadRequest(new { error = "Flickr API key and secret are required" });
         if (string.IsNullOrWhiteSpace(config.Flickr.AccessToken))
             return Results.BadRequest(new { error = "Complete Flickr authorization before saving settings" });
         config.Flickr.Enabled = true;
-        config.Public = new InstanceConfig(); // clear public Immich when switching to Flickr
+        config.Public = new InstanceConfig();
     }
 
     config.SyncTarget = target;
@@ -278,29 +330,6 @@ app.MapPost("/api/flickr/disconnect", (SyncConfigService cfg) =>
 });
 
 app.Run();
-
-// ── Helpers ──────────────────────────────────────────────────────
-
-static class HttpContextHelper
-{
-    private static SyncEngine? _engine;
-
-    public static SyncEngine GetOrCreateEngine(SyncConfigService cfg, ref SyncEngine? engine, IServiceProvider sp)
-    {
-        engine ??= CreateEngine(cfg, sp);
-        return engine;
-    }
-
-    public static SyncEngine CreateEngine(SyncConfigService cfg, IServiceProvider sp)
-    {
-        var config = cfg.Load();
-        var main = new ImmichClient(config.Main.Url, config.Main.ApiKey);
-        var pub = new ImmichClient(config.Public.Url, config.Public.ApiKey);
-        return new SyncEngine(cfg, main, pub);
-    }
-
-    public static void StoreEngine(IServiceProvider sp, SyncEngine engine) => _engine = engine;
-}
 
 public record SetupRequest(
     string MainUrl, string MainApiKey,

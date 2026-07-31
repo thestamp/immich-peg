@@ -6,7 +6,7 @@ namespace ImmichPeg.Services;
 public class SyncConfigService
 {
     private const string ConfigPath = "/data/config.json";
-    private const int RecentAssetsMax = 20;
+    private const int RecentAssetsMax = 50;
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true, PropertyNamingPolicy = new SnakeCaseNamingPolicy() };
 
     public SyncConfig Load()
@@ -26,13 +26,16 @@ public class SyncConfigService
         File.WriteAllText(ConfigPath, json);
     }
 
-    public void AddRecentAsset(SyncConfig config, string filename, string albumName)
+    public void AddRecentAsset(SyncConfig config, string filename, string albumName,
+        string action = "added", string entity = "photo")
     {
         config.RecentAssets.Insert(0, new RecentAsset
         {
             Filename = filename,
             AlbumName = albumName,
-            Timestamp = DateTime.UtcNow.ToString("o")
+            Timestamp = DateTime.UtcNow.ToString("o"),
+            Action = action,
+            Entity = entity
         });
         if (config.RecentAssets.Count > RecentAssetsMax)
             config.RecentAssets = config.RecentAssets.Take(RecentAssetsMax).ToList();

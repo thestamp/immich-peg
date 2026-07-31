@@ -11,10 +11,8 @@ public partial class FlickrSyncEngine
     private readonly ImmichClient _immich;
     private readonly SyncConfig _config;
 
-    // Pattern to extract flickr_id from Immich album description
-    // Looks for {"flickr_id":"721777..."} anywhere in the description
-    [GeneratedRegex(@"""flickr_id""\s*:\s*""(\d+@N\d+)""")]
-    private static partial Regex FlickrIdRegex();
+    [GeneratedRegex(@"""immich_id""\s*:\s*""([a-f0-9-]+)""")]
+    private static partial Regex ImmichIdRegex();
 
     public FlickrSyncEngine(SyncConfigService configService, FlickrClient flickr, SyncConfig config)
     {
@@ -28,7 +26,8 @@ public partial class FlickrSyncEngine
     {
         var stats = new Dictionary<string, object>
         {
-            ["albums_synced"] = 0, ["photos_uploaded"] = 0, ["photos_skipped"] = 0, ["errors"] = new List<string>()
+            ["albums_synced"] = 0, ["photos_added"] = 0, ["photos_skipped"] = 0,
+            ["photos_deleted"] = 0, ["albums_created"] = 0, ["errors"] = new List<string>()
         };
 
         try
@@ -37,20 +36,22 @@ public partial class FlickrSyncEngine
             var sharedAlbums = await _immich.GetAllAlbumsAsync(true);
             Console.WriteLine($"[FlickrSync] Found {sharedAlbums.Count} shared albums");
 
+            // Track which Immich albums exist (for detecting removals)
+            var currentAlbumIds = new HashSet<string>();
+
             foreach (var album in sharedAlbums)
             {
                 try
                 {
                     var albumId = album.GetProperty("id").GetString()!;
                     var albumName = album.GetProperty("albumName").GetString()!;
-                    var albumDescription = album.TryGetProperty("description", out var desc)
-                        ? desc.GetString() ?? ""
-                        : "";
-
-                    var result = await SyncAlbumToFlickrAsync(albumId, albumName, albumDescription);
+                    currentAlbumIds.Add(albumId);
+                    var result = await SyncAlbumToFlickrAsync(albumId, albumName);
                     stats["albums_synced"] = (int)stats["albums_synced"] + 1;
-                    stats["photos_uploaded"] = (int)stats["photos_uploaded"] + (int)result["uploaded"];
+                    stats["photos_added"] = (int)stats["photos_added"] + (int)result["added"];
                     stats["photos_skipped"] = (int)stats["photos_skipped"] + (int)result["skipped"];
+                    stats["photos_deleted"] = (int)stats["photos_deleted"] + (int)result["deleted"];
+                    if ((bool)result["album_created"]) stats["albums_created"] = (int)stats["albums_created"] + 1;
                 }
                 catch (Exception ex)
                 {
@@ -58,6 +59,9 @@ public partial class FlickrSyncEngine
                     ((List<string>)stats["errors"]).Add($"Error: {ex.Message}");
                 }
             }
+
+            // Detect removed albums (in config but no longer in Immich)
+            await CleanupRemovedAlbums(currentAlbumIds);
         }
         catch (Exception ex) { Console.WriteLine($"[FlickrSync] Fatal error: {ex}"); }
         finally
@@ -68,94 +72,103 @@ public partial class FlickrSyncEngine
         return stats;
     }
 
-    private async Task<Dictionary<string, object>> SyncAlbumToFlickrAsync(
-        string albumId, string albumName, string albumDescription)
+    private async Task CleanupRemovedAlbums(HashSet<string> currentAlbumIds)
     {
-        var result = new Dictionary<string, object> { ["uploaded"] = 0, ["skipped"] = 0 };
+        var removed = _config.FlickredAlbums.Keys
+            .Where(id => !currentAlbumIds.Contains(id))
+            .ToList();
+
+        foreach (var albumId in removed)
+        {
+            try
+            {
+                var name = _config.SyncedAlbums.TryGetValue(albumId, out var sa) ? sa.AlbumName : albumId;
+                Console.WriteLine($"[FlickrSync] Album removed from Immich: {name}");
+
+                // Try to delete the Flickr photoset
+                if (_config.FlickredAlbums.TryGetValue(albumId, out var photosetId))
+                {
+                    try
+                    {
+                        await _flickr.DeletePhotosetAsync(photosetId);
+                        Console.WriteLine($"[FlickrSync] Deleted Flickr photoset {photosetId}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[FlickrSync] Could not delete Flickr photoset: {ex.Message}");
+                    }
+                    _config.FlickredAlbums.Remove(albumId);
+                }
+
+                _config.SyncedAlbums.Remove(albumId);
+                _configService.AddRecentAsset(_config, name, "", "removed", "album");
+                _configService.Save(_config);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[FlickrSync] Error cleaning up removed album: {ex}");
+            }
+        }
+    }
+
+    private async Task<Dictionary<string, object>> SyncAlbumToFlickrAsync(string albumId, string albumName)
+    {
+        var result = new Dictionary<string, object>
+        {
+            ["added"] = 0, ["skipped"] = 0, ["deleted"] = 0, ["album_created"] = false
+        };
 
         // === STEP 1: Find or create the Flickr photoset ===
         string? photosetId = null;
-        bool isNewPhotoset = false;
 
-        // 1a: Check config-based mapping first
+        // 1a: Config mapping
         if (_config.FlickredAlbums.TryGetValue(albumId, out var existingId))
         {
-            // Verify it still exists on Flickr
-            try
-            {
-                await _flickr.GetPhotosetPhotoIdsAsync(existingId);
-                photosetId = existingId;
-                Console.WriteLine($"[FlickrSync] Found photoset from config: {photosetId} for album {albumId}");
-            }
+            try { await _flickr.GetPhotosetPhotoIdsAsync(existingId); photosetId = existingId; }
             catch
             {
-                Console.WriteLine($"[FlickrSync] Cached photoset {existingId} no longer exists, re-locating...");
+                Console.WriteLine($"[FlickrSync] Cached photoset {existingId} gone, re-locating...");
                 _config.FlickredAlbums.Remove(albumId);
             }
         }
 
-        // 1b: Check Immich album description for stored flickr_id
+        // 1b: Search Flickr album descriptions for immich_id
         if (photosetId == null)
-        {
-            var match = FlickrIdRegex().Match(albumDescription);
-            if (match.Success)
-            {
-                var descPhotosetId = match.Groups[1].Value;
-                try
-                {
-                    await _flickr.GetPhotosetPhotoIdsAsync(descPhotosetId);
-                    photosetId = descPhotosetId;
-                    _config.FlickredAlbums[albumId] = photosetId;
-                    Console.WriteLine($"[FlickrSync] Found photoset from Immich description: {photosetId} for album {albumId}");
-                }
-                catch
-                {
-                    Console.WriteLine($"[FlickrSync] Description photoset {descPhotosetId} no longer exists, falling back...");
-                }
-            }
-        }
+            photosetId = await FindPhotosetByImmichIdAsync(albumId);
 
-        // 1c: Fallback — search by title
+        // 1c: Fallback — title search
         if (photosetId == null)
         {
             photosetId = await _flickr.FindPhotosetByTitleAsync(albumName);
             if (photosetId != null)
-            {
-                Console.WriteLine($"[FlickrSync] Found photoset by title: {photosetId} for '{albumName}'");
-                _config.FlickredAlbums[albumId] = photosetId;
-            }
+                Console.WriteLine($"[FlickrSync] Found by title: {photosetId} for '{albumName}'");
         }
 
-        // 1d: Create new photoset if nothing found
         if (photosetId == null)
-        {
-            isNewPhotoset = true;
-            Console.WriteLine($"[FlickrSync] Will create new photoset for '{albumName}' on first upload");
-        }
+            Console.WriteLine($"[FlickrSync] Will create new photoset for '{albumName}'");
 
         // === STEP 2: Get existing photo titles (for dedup) ===
         HashSet<string> existingTitles = new();
         if (photosetId != null)
-        {
             existingTitles = await _flickr.GetPhotosetPhotoTitlesAsync(photosetId);
-            Console.WriteLine($"[FlickrSync] Photoset {photosetId} has {existingTitles.Count} existing photos");
-        }
 
-        // === STEP 3: Get Immich assets for this album ===
+        // === STEP 3: Get Immich assets ===
         var assets = await _immich.GetAlbumAssetsAsync(albumId);
-        Console.WriteLine($"[FlickrSync] Album '{albumName}' has {assets.Count} assets");
-
-        // === STEP 4: Upload new photos (skip duplicates by title) ===
+        var assetTitles = new HashSet<string>();
         foreach (var asset in assets)
         {
-            var originalName = asset.TryGetProperty("originalFileName", out var on)
-                ? on.GetString() ?? ""
-                : "";
+            var name = asset.TryGetProperty("originalFileName", out var on) ? on.GetString() ?? "" : "";
+            if (!string.IsNullOrEmpty(name))
+                assetTitles.Add(Path.GetFileNameWithoutExtension(name));
+        }
+
+        // === STEP 4: Upload new ===
+        foreach (var asset in assets)
+        {
+            var originalName = asset.TryGetProperty("originalFileName", out var on2) ? on2.GetString() ?? "" : "";
             if (string.IsNullOrEmpty(originalName)) continue;
 
             var title = Path.GetFileNameWithoutExtension(originalName);
-
-            // Skip if already in the photoset (by title)
             if (existingTitles.Contains(title))
             {
                 result["skipped"] = (int)result["skipped"] + 1;
@@ -166,30 +179,28 @@ public partial class FlickrSyncEngine
             {
                 var assetId = asset.GetProperty("id").GetString()!;
                 var assetData = await _immich.DownloadAssetAsync(assetId);
-                Console.WriteLine($"[FlickrSync] Downloaded {assetId}: {assetData.Length} bytes ({originalName})");
 
                 var photoId = await _flickr.UploadPhotoAsync(assetData, originalName, title,
                     $"From Immich album: {albumName}");
 
-                result["uploaded"] = (int)result["uploaded"] + 1;
+                result["added"] = (int)result["added"] + 1;
                 _config.FlickrPhotosUploaded++;
-                existingTitles.Add(title); // Track so we don't skip within same batch
+                existingTitles.Add(title);
 
-                // Create photoset with first photo if needed
                 if (photosetId == null)
                 {
-                    var immichRef = MakeFlickrDescription(albumId);
-                    photosetId = await _flickr.CreatePhotosetAsync(albumName, photoId, immichRef);
+                    var desc = MakeFlickrDescription(albumId);
+                    photosetId = await _flickr.CreatePhotosetAsync(albumName, photoId, desc);
                     _config.FlickredAlbums[albumId] = photosetId;
-                    isNewPhotoset = true;
-                    Console.WriteLine($"[FlickrSync] Created photoset {photosetId} with immich_id={albumId}");
+                    result["album_created"] = true;
+                    Console.WriteLine($"[FlickrSync] Created photoset {photosetId}");
                 }
                 else
                 {
                     await _flickr.AddPhotoToPhotosetAsync(photosetId, photoId);
                 }
 
-                _configService.AddRecentAsset(_config, originalName, $"Flickr: {albumName}");
+                _configService.AddRecentAsset(_config, originalName, albumName, "added", "photo");
                 _configService.Save(_config);
             }
             catch (Exception ex)
@@ -198,27 +209,46 @@ public partial class FlickrSyncEngine
             }
         }
 
-        // === STEP 5: Sync cross-references (store IDs in descriptions) ===
+        // === STEP 5: Delete photos no longer in Immich ===
+        if (photosetId != null && existingTitles.Count > 0)
+        {
+            var toDelete = existingTitles.Except(assetTitles).ToList();
+            foreach (var title in toDelete)
+            {
+                try
+                {
+                    // We need the photo ID, search by title in the photoset
+                    var photoIds = await _flickr.GetPhotosetPhotoIdsByTitleAsync(photosetId, title);
+                    foreach (var pid in photoIds)
+                    {
+                        try
+                        {
+                            await _flickr.DeletePhotoAsync(pid);
+                            result["deleted"] = (int)result["deleted"] + 1;
+                            _config.FlickrPhotosDeleted++;
+                            _configService.AddRecentAsset(_config, title, albumName, "deleted", "photo");
+                            Console.WriteLine($"[FlickrSync] Deleted photo: {title}");
+                        }
+                        catch (Exception dex)
+                        {
+                            Console.Error.WriteLine($"[FlickrSync] Delete photo failed: {title}: {dex.Message}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"[FlickrSync] Find photo for delete failed: {title}: {ex.Message}");
+                }
+            }
+        }
+
+        // === STEP 6: Update Flickr description with immich_id (no longer write to Immich) ===
         if (photosetId != null)
         {
-            // Update Immich album description with flickr_id
-            var immichDesc = MakeImmichDescription(photosetId, albumDescription);
-            try
-            {
-                await _immich.UpdateAlbumDescriptionAsync(albumId, immichDesc);
-                Console.WriteLine($"[FlickrSync] Updated Immich album {albumId} description with flickr_id={photosetId}");
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"[FlickrSync] Failed to update Immich description: {ex.Message}");
-            }
-
-            // Update Flickr photoset description with immich_id
             var flickrDesc = MakeFlickrDescription(albumId);
             try
             {
                 await _flickr.EditPhotosetMetaAsync(photosetId, albumName, flickrDesc);
-                Console.WriteLine($"[FlickrSync] Updated Flickr photoset {photosetId} description with immich_id={albumId}");
             }
             catch (Exception ex)
             {
@@ -228,33 +258,50 @@ public partial class FlickrSyncEngine
             _config.FlickredAlbums[albumId] = photosetId;
             _config.FlickrAlbumsSynced = _config.FlickredAlbums.Count;
 
-            // Reset the tracking so it re-checks all albums next time
-            _config.FlickredAlbums = new Dictionary<string, string>(_config.FlickredAlbums);
+            // Track synced album stats
+            _config.SyncedAlbums[albumId] = new SyncedAlbum
+            {
+                AlbumName = albumName,
+                AssetCount = assets.Count,
+                TotalAssets = assets.Count,
+                LastSynced = DateTime.UtcNow.ToString("o")
+            };
         }
 
         return result;
     }
 
     /// <summary>
-    /// Build Immich album description with embedded flickr_id.
-    /// Preserves existing user description content.
+    /// Search all Flickr photosets for one whose description contains this immich_id.
     /// </summary>
-    private static string MakeImmichDescription(string flickrPhotosetId, string existingDescription)
+    private async Task<string?> FindPhotosetByImmichIdAsync(string immichId)
     {
-        var flickrRef = $"{{\"flickr_id\":\"{flickrPhotosetId}\"}}";
-
-        // Remove any previous flickr_id from description
-        var cleaned = FlickrIdRegex().Replace(existingDescription, "").Trim();
-
-        if (string.IsNullOrEmpty(cleaned))
-            return flickrRef;
-
-        return flickrRef + "\n" + cleaned;
+        try
+        {
+            // Use the flickr client to iterate all photosets
+            for (int page = 1; page <= 10; page++)
+            {
+                var all = await _flickr.GetPhotosetListPageAsync(page, 50);
+                if (all.Count == 0) break;
+                foreach (var (psId, title, desc) in all)
+                {
+                    var m = ImmichIdRegex().Match(desc);
+                    if (m.Success && m.Groups[1].Value == immichId)
+                    {
+                        Console.WriteLine($"[FlickrSync] Found photoset by immich_id: {psId} -> {immichId}");
+                        return psId;
+                    }
+                }
+                if (all.Count < 50) break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[FlickrSync] FindPhotosetByImmichId error: {ex.Message}");
+        }
+        return null;
     }
 
-    /// <summary>
-    /// Build Flickr photoset description with embedded immich_id.
-    /// </summary>
     private static string MakeFlickrDescription(string immichAlbumId)
     {
         return $"{{\"immich_id\":\"{immichAlbumId}\"}}";

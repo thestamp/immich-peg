@@ -11,7 +11,7 @@ public class SyncConfig
     public InstanceConfig Main { get; set; } = new();
     public InstanceConfig Public { get; set; } = new();
     public FlickrConfig Flickr { get; set; } = new();
-    public string SyncTarget { get; set; } = "immich"; // "immich" or "flickr"
+    public string SyncTarget { get; set; } = "immich";
     public int SyncIntervalMinutes { get; set; } = 5;
     public bool SetupComplete { get; set; }
     public bool SettingsEnabled { get; set; } = true;
@@ -28,7 +28,8 @@ public class SyncConfig
     public List<RecentAsset> RecentAssets { get; set; } = new();
     public int FlickrAlbumsSynced { get; set; }
     public int FlickrPhotosUploaded { get; set; }
-    public Dictionary<string, string> FlickredAlbums { get; set; } = new(); // main album ID → flickr photoset ID
+    public int FlickrPhotosDeleted { get; set; }
+    public Dictionary<string, string> FlickredAlbums { get; set; } = new();
 }
 
 public class SyncedAlbum
@@ -45,6 +46,8 @@ public class RecentAsset
     public string Filename { get; set; } = "";
     public string AlbumName { get; set; } = "";
     public string Timestamp { get; set; } = "";
+    public string Action { get; set; } = "added";    // "added", "deleted", "created", "removed"
+    public string Entity { get; set; } = "photo";     // "photo" or "album"
 }
 
 public class DashboardData
@@ -62,13 +65,25 @@ public class DashboardData
     public int TotalSyncedAlbums { get; set; }
     public int TotalAlbumsSyncedEver { get; set; }
     public int TotalAssetsCopiedEver { get; set; }
+    public int TotalAssetsDeletedEver { get; set; }
     public int TotalAlbumsRemovedEver { get; set; }
     public List<SyncedAlbum> SyncedAlbums { get; set; } = new();
+    public List<AlbumSyncStatus> AlbumStatuses { get; set; } = new();
     public List<RecentAsset> RecentAssets { get; set; } = new();
     public Dictionary<string, PermissionStatus>? Permissions { get; set; }
     public FlickrStatus? Flickr { get; set; }
     public bool HasPublicDest { get; set; }
     public string SyncTarget { get; set; } = "immich";
+}
+
+public class AlbumSyncStatus
+{
+    public string AlbumId { get; set; } = "";
+    public string AlbumName { get; set; } = "";
+    public int AssetCount { get; set; }
+    public int SyncedCount { get; set; }
+    public string? FlickrAlbumId { get; set; }
+    public bool Synced => SyncedCount >= AssetCount && FlickrAlbumId != null;
 }
 
 public class PermissionStatus

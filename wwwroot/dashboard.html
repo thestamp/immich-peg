@@ -21,7 +21,7 @@ nav a { color: var(--text-dim); text-decoration: none; font-size: 14px; transiti
 nav a:hover, nav a.active { color: var(--text); }
 nav .spacer { flex: 1; }
 .container { width: 100%; max-width: 1000px; margin: 0 auto; padding: 24px; }
-.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
 .metric { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
 .metric .label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
 .metric .value { font-size: 28px; font-weight: 600; }
@@ -40,10 +40,6 @@ nav .spacer { flex: 1; }
 .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-primary:hover { background: var(--accent-hover); }
-.btn-danger { background: var(--red); color: #fff; }
-.btn-danger:hover { opacity: 0.8; }
-.btn-secondary { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); }
-.btn-secondary:hover { background: var(--border); }
 .btn-flickr { background: var(--pink); color: #fff; }
 .btn-flickr:hover { background: #ff339d; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -54,18 +50,20 @@ th, td { text-align: left; padding: 10px 12px; font-size: 13px; border-bottom: 1
 th { color: var(--text-dim); font-weight: 500; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
 td { color: var(--text); }
 .empty { text-align: center; padding: 32px; color: var(--text-dim); font-size: 14px; }
-.health-row { display: flex; gap: 16px; align-items: center; }
+.health-row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
 .health-item { display: flex; align-items: center; gap: 6px; font-size: 14px; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
 .badge.ok { background: rgba(63,185,80,0.15); color: var(--green); }
 .badge.warn { background: rgba(210,153,29,0.15); color: var(--yellow); }
 .badge.err { background: rgba(248,81,73,0.15); color: var(--red); }
-.flickr-card { border-left: 3px solid var(--pink); }
-.flickr-card h3 { font-size: 14px; color: var(--pink); }
+.badge.pink { background: rgba(255,0,132,0.15); color: var(--pink); }
 .hidden { display: none; }
 #notSetUp { text-align: center; padding: 60px 20px; }
 #notSetUp h2 { font-size: 22px; margin-bottom: 8px; }
 #notSetUp p { color: var(--text-dim); margin-bottom: 20px; }
+.sync-bar { display: flex; align-items: center; gap: 10px; }
+.progress-bar { flex: 1; height: 4px; background: var(--bg-input); border-radius: 2px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--yellow); border-radius: 2px; transition: width 0.5s; }
 </style>
 </head>
 <body>
@@ -88,7 +86,6 @@ td { color: var(--text); }
       <h2>System Health <span id="healthIndicator"></span></h2>
       <div class="health-row">
         <div class="health-item"><span class="status-dot" id="dotMain"></span> Main: <strong id="healthMain">-</strong></div>
-        <div class="health-item"><span class="status-dot" id="dotPublic"></span> Public: <strong id="healthPublic">-</strong></div>
         <div class="health-item" id="flickrHealth" style="display:none"><span class="status-dot" id="dotFlickr"></span> Flickr: <strong id="healthFlickr">-</strong></div>
         <span style="color:var(--text-dim);font-size:13px;margin-left:8px" id="healthLastCheck"></span>
       </div>
@@ -96,24 +93,25 @@ td { color: var(--text); }
 
     <div class="metrics" id="metrics">
       <div class="metric"><div class="label">Shared Albums</div><div class="value" id="statShared">0</div></div>
-      <div class="metric"><div class="label">Synced Albums</div><div class="value" id="statSynced">0</div></div>
-      <div class="metric"><div class="label">Assets Copied</div><div class="value" id="statAssets">0</div><div class="sub" id="statAlbumsRemoved"></div></div>
-      <div class="metric" id="flickrMetric" style="display:none"><div class="label">Flickr Photos</div><div class="value pink" id="statFlickrPhotos">0</div><div class="sub" id="statFlickrAlbums"></div></div>
+      <div class="metric"><div class="label">Synced</div><div class="value green" id="statSynced">0</div></div>
+      <div class="metric"><div class="label">Photos Uploaded</div><div class="value pink" id="statPhotos">0</div></div>
+      <div class="metric"><div class="label">Photos Deleted</div><div class="value red" id="statDeleted">0</div></div>
     </div>
 
     <div class="card">
-      <h2>Sync Controls <span class="status-dot" id="syncDot"></span></h2>
-      <div class="sync-status" id="syncInfo">No sync running</div>
+      <h2>Sync Status <span class="status-dot" id="syncDot"></span></h2>
+      <div class="sync-bar">
+        <span id="syncStatusText" style="font-size:14px">Idle</span>
+        <div class="progress-bar hidden" id="progressBar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      </div>
+      <div class="sync-status" id="syncInfo">Last sync: never</div>
       <div class="btn-row">
-        <button class="btn btn-primary" id="btnPublish" onclick="startSync('publish')">📋 Publish Metadata</button>
-        <button class="btn btn-primary" id="btnAssets" onclick="startSync('assets')">📦 Copy Assets</button>
-        <button class="btn btn-flickr" id="btnFlickr" onclick="startSync('flickr')" disabled>📷 Sync to Flickr</button>
-        <button class="btn btn-danger" id="btnStop" onclick="stopSync()" disabled>⏹ Stop</button>
+        <button class="btn btn-flickr" id="btnFlickr" onclick="startSync()">🔄 Sync Now</button>
       </div>
     </div>
 
     <div class="card">
-      <h2>Synced Albums</h2>
+      <h2>Albums <span style="font-size:12px;color:var(--text-dim);font-weight:400" id="albumSummary"></span></h2>
       <div id="albumTable"></div>
     </div>
 
@@ -136,68 +134,86 @@ async function loadDashboard() {
     if (!d.setupComplete) { document.getElementById('notSetUp').classList.remove('hidden'); document.getElementById('dashboard').classList.add('hidden'); return; }
     document.getElementById('notSetUp').classList.add('hidden');
     document.getElementById('dashboard').classList.remove('hidden');
-    const target = d.syncTarget || 'immich';
-    const hasPublic = target === 'immich' && d.hasPublicDest;
-    const isFlickr = target === 'flickr' && d.flickr?.configured;
+
+    // Health
     const mainOk = d.health?.main;
     document.getElementById('healthMain').textContent = mainOk ? 'UP' : 'DOWN';
     document.getElementById('dotMain').className = 'status-dot ' + (mainOk ? 'ok' : 'down');
-    document.getElementById('healthPublic').parentElement.style.display = hasPublic ? '' : 'none';
-    if (hasPublic) {
-      const pubOk = d.health?.public;
-      document.getElementById('healthPublic').textContent = pubOk ? 'UP' : 'DOWN';
-      document.getElementById('dotPublic').className = 'status-dot ' + (pubOk ? 'ok' : 'down');
-    }
     document.getElementById('healthLastCheck').textContent = d.lastSync ? new Date(d.lastSync).toLocaleString() : '';
-    document.getElementById('statShared').textContent = d.totalSharedAlbums || 0;
-    document.getElementById('statSynced').textContent = d.totalSyncedAlbums || 0;
-    document.getElementById('statAssets').textContent = d.totalAssetsCopiedEver || 0;
-    document.getElementById('statAlbumsRemoved').textContent = (d.totalAlbumsRemovedEver || 0) + ' removed';
-    // Flickr
+
+    // Flickr health
     if (fr && fr.ok) {
       const fs = await fr.json();
       if (fs.configured) {
         document.getElementById('flickrHealth').style.display = '';
         document.getElementById('healthFlickr').textContent = fs.authorized ? (fs.enabled ? 'UP' : 'OFF') : 'NO AUTH';
         document.getElementById('dotFlickr').className = 'status-dot ' + (fs.authorized && fs.enabled ? 'ok' : 'down');
-        document.getElementById('btnFlickr').disabled = !fs.authorized || !fs.enabled;
-        if (fs.albumsSynced > 0 || fs.photosUploaded > 0) document.getElementById('flickrMetric').style.display = '';
-        document.getElementById('statFlickrPhotos').textContent = fs.photosUploaded || 0;
-        document.getElementById('statFlickrAlbums').textContent = (fs.albumsSynced || 0) + ' albums';
       }
     }
+
+    // Metrics
+    document.getElementById('statShared').textContent = d.totalSharedAlbums || 0;
+    document.getElementById('statSynced').textContent = d.totalSyncedAlbums || 0;
+    document.getElementById('statPhotos').textContent = d.totalAssetsCopiedEver || 0;
+    document.getElementById('statDeleted').textContent = d.totalAssetsDeletedEver || 0;
+
+    // Sync status
     const syncing = d.syncActive;
     document.getElementById('syncDot').className = 'status-dot ' + (syncing ? 'syncing' : 'ok');
-    document.getElementById('syncInfo').textContent = syncing ? 'Sync in progress...' : (d.lastSyncStatus === 'never' ? 'No sync run yet' : 'Last sync: ' + d.lastSyncStatus + ' -- ' + (d.lastSyncMessage || ''));
-    document.getElementById('btnPublish').disabled = syncing || !hasPublic;
-    document.getElementById('btnPublish').style.display = hasPublic ? '' : 'none';
-    document.getElementById('btnAssets').disabled = syncing || !hasPublic;
-    document.getElementById('btnAssets').style.display = hasPublic ? '' : 'none';
-    document.getElementById('btnFlickr').disabled = syncing || !isFlickr || !d.flickr?.authorized;
-    document.getElementById('btnFlickr').style.display = isFlickr ? '' : 'none';
-    document.getElementById('btnStop').disabled = !syncing;
-    const albums = d.syncedAlbums || [];
-    document.getElementById('albumTable').innerHTML = albums.length === 0 ? '<div class="empty">No albums synced yet</div>' :
-      '<table><tr><th>Album</th><th>Assets</th><th>Last Synced</th></tr>' + albums.map(a => '<tr><td>' + esc(a.albumName) + '</td><td>' + a.assetCount + '/' + (a.totalAssets || a.assetCount) + '</td><td>' + (a.lastSynced ? new Date(a.lastSynced).toLocaleString() : '--') + '</td></tr>').join('') + '</table>';
+    document.getElementById('syncStatusText').textContent = syncing ? 'Syncing...' : 'Idle';
+    document.getElementById('progressBar').classList.toggle('hidden', !syncing);
+    document.getElementById('btnFlickr').disabled = syncing;
+
+    if (d.lastSyncStatus === 'running' || syncing) {
+      document.getElementById('syncInfo').textContent = 'Sync in progress...';
+    } else if (d.lastSyncStatus === 'never') {
+      document.getElementById('syncInfo').textContent = 'No sync run yet';
+    } else {
+      document.getElementById('syncInfo').textContent = 'Last sync: ' + new Date(d.lastSync).toLocaleString() + ' — ' + (d.lastSyncMessage || d.lastSyncStatus);
+    }
+
+    // Album table
+    const albums = d.albumStatuses || [];
+    document.getElementById('albumSummary').textContent = albums.length + ' albums, ' + albums.filter(a => a.synced).length + ' synced';
+    document.getElementById('albumTable').innerHTML = albums.length === 0 ? '<div class="empty">No shared albums found</div>' :
+      '<table><tr><th>Album</th><th>Assets</th><th>Flickr</th><th>Status</th></tr>' + 
+      albums.map(a => '<tr>' +
+        '<td>' + esc(a.albumName) + '</td>' +
+        '<td>' + a.assetCount + '</td>' +
+        '<td>' + (a.flickrAlbumId ? '✓' : '—') + '</td>' +
+        '<td><span class="badge ' + (a.synced ? 'ok' : a.flickrAlbumId ? 'warn' : 'err') + '">' + (a.synced ? 'Synced' : a.flickrAlbumId ? 'Partial' : 'Not synced') + '</span></td>' +
+        '</tr>').join('') + '</table>';
+
+    // Recent activity
     const recent = d.recentAssets || [];
     document.getElementById('recentTable').innerHTML = recent.length === 0 ? '<div class="empty">No recent activity</div>' :
-      '<table><tr><th>File</th><th>Album</th><th>Time</th></tr>' + recent.slice(0, 10).map(a => '<tr><td>' + esc(a.filename) + '</td><td>' + esc(a.albumName) + '</td><td>' + new Date(a.timestamp).toLocaleString() + '</td></tr>').join('') + '</table>';
+      '<table><tr><th>Action</th><th>Item</th><th>Album</th><th>Time</th></tr>' + 
+      recent.slice(0, 20).map(a => {
+        const badgeCls = a.action === 'deleted' ? 'err' : a.action === 'created' || a.action === 'removed' ? 'warn' : 'ok';
+        const icon = a.entity === 'album' ? (a.action === 'removed' ? '🗑 Album removed' : '📁 Album created') :
+                     a.action === 'deleted' ? '🗑 Deleted' : '📤 Added';
+        return '<tr>' +
+          '<td><span class="badge ' + badgeCls + '">' + icon + '</span></td>' +
+          '<td>' + esc(a.filename) + '</td>' +
+          '<td>' + esc(a.albumName) + '</td>' +
+          '<td>' + new Date(a.timestamp).toLocaleString() + '</td>' +
+          '</tr>';
+      }).join('') + '</table>';
+
   } catch(e) {
     document.getElementById('notSetUp').classList.remove('hidden');
     document.getElementById('notSetUp').innerHTML = '<h2>Connection Error</h2><p>' + esc(e.message) + '</p><button class="btn btn-primary" onclick="loadDashboard()">Retry</button>';
   }
 }
+
 function esc(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-async function startSync(action) {
-  const btn = document.getElementById(action === 'publish' ? 'btnPublish' : action === 'assets' ? 'btnAssets' : 'btnFlickr');
-  btn.disabled = true;
-  try { await fetch('/api/sync/' + action, { method: 'POST' }); } catch(e) {}
-  setTimeout(loadDashboard, 1000);
+
+async function startSync() {
+  document.getElementById('btnFlickr').disabled = true;
+  try { await fetch('/api/sync/flickr', { method: 'POST' }); } catch(e) {}
+  setTimeout(loadDashboard, 1500);
 }
-async function stopSync() {
-  try { await fetch('/api/sync/stop', { method: 'POST' }); } catch(e) {}
-  setTimeout(loadDashboard, 1000);
-}
+
 loadDashboard();
 pollTimer = setInterval(loadDashboard, POLL_MS);
 </script>

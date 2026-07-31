@@ -232,6 +232,91 @@ public class FlickrClient
         return titles;
     }
 
+    public async Task DeletePhotosetAsync(string photosetId)
+    {
+        var sig = Sign("GET", $"{BaseUrl}/rest/", new()
+        {
+            ["method"] = "flickr.photosets.delete",
+            ["api_key"] = _apiKey,
+            ["oauth_token"] = _accessToken!,
+            ["photoset_id"] = photosetId
+        }, _accessToken, _accessTokenSecret);
+        var resp = await _http.GetStringAsync($"{BaseUrl}/rest/?{sig}");
+        if (!resp.Contains("stat=\"ok\""))
+            throw new Exception("Failed to delete photoset");
+    }
+
+    public async Task DeletePhotoAsync(string photoId)
+    {
+        var sig = Sign("GET", $"{BaseUrl}/rest/", new()
+        {
+            ["method"] = "flickr.photos.delete",
+            ["api_key"] = _apiKey,
+            ["oauth_token"] = _accessToken!,
+            ["photo_id"] = photoId
+        }, _accessToken, _accessTokenSecret);
+        var resp = await _http.GetStringAsync($"{BaseUrl}/rest/?{sig}");
+        if (!resp.Contains("stat=\"ok\""))
+            throw new Exception("Failed to delete photo");
+    }
+
+    public async Task<List<(string Id, string Title, string Description)>> GetPhotosetListPageAsync(int page, int perPage)
+    {
+        var results = new List<(string Id, string Title, string Description)>();
+        var sig = Sign("GET", $"{BaseUrl}/rest/", new()
+        {
+            ["method"] = "flickr.photosets.getList",
+            ["api_key"] = _apiKey,
+            ["oauth_token"] = _accessToken!,
+            ["page"] = page.ToString(),
+            ["per_page"] = perPage.ToString()
+        }, _accessToken, _accessTokenSecret);
+        var resp = await _http.GetStringAsync($"{BaseUrl}/rest/?{sig}");
+        var doc = XDocument.Parse(resp);
+        foreach (var ps in doc.Descendants("photoset"))
+        {
+            var id = ps.Attribute("id")?.Value ?? "";
+            var title = ps.Element("title")?.Value ?? "";
+            var desc = ps.Element("description")?.Value ?? "";
+            if (!string.IsNullOrEmpty(id))
+                results.Add((id, title, desc));
+        }
+        return results;
+    }
+
+    public async Task<List<string>> GetPhotosetPhotoIdsByTitleAsync(string photosetId, string title)
+    {
+        var ids = new List<string>();
+        int page = 1;
+        while (true)
+        {
+            var sig = Sign("GET", $"{BaseUrl}/rest/", new()
+            {
+                ["method"] = "flickr.photosets.getPhotos",
+                ["api_key"] = _apiKey,
+                ["oauth_token"] = _accessToken!,
+                ["photoset_id"] = photosetId,
+                ["page"] = page.ToString(),
+                ["per_page"] = "500"
+            }, _accessToken, _accessTokenSecret);
+            var resp = await _http.GetStringAsync($"{BaseUrl}/rest/?{sig}");
+            var doc = XDocument.Parse(resp);
+            foreach (var photo in doc.Descendants("photo"))
+            {
+                if (photo.Attribute("title")?.Value == title)
+                {
+                    var pid = photo.Attribute("id")?.Value;
+                    if (pid != null) ids.Add(pid);
+                }
+            }
+            var ps = doc.Descendants("photoset").FirstOrDefault();
+            var pages = int.Parse(ps?.Attribute("pages")?.Value ?? "1");
+            if (pages <= page) break;
+            page++;
+        }
+        return ids;
+    }
+
     public async Task<bool> PingAsync()
     {
         try
