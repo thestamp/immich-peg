@@ -178,10 +178,11 @@ public partial class FlickrSyncEngine
             try
             {
                 var assetId = asset.GetProperty("id").GetString()!;
-                var assetData = await _immich.DownloadAssetAsync(assetId);
+                var assetFile = await _immich.DownloadAssetAsync(assetId);
 
-                var photoId = await _flickr.UploadPhotoAsync(assetData, originalName, title,
+                var photoId = await _flickr.UploadPhotoAsync(assetFile, originalName, title,
                     $"From Immich album: {albumName}");
+                try { File.Delete(assetFile); } catch { }
 
                 result["added"] = (int)result["added"] + 1;
                 _config.FlickrPhotosUploaded++;

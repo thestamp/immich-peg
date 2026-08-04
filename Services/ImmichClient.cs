@@ -146,10 +146,10 @@ public class ImmichClient : IDisposable
         return map;
     }
 
-    public async Task<JsonElement> UploadAssetAsync(byte[] assetData, string filename, string fileCreatedAt, string fileModifiedAt)
+    public async Task<JsonElement> UploadAssetAsync(string filePath, string filename, string fileCreatedAt, string fileModifiedAt)
     {
         using var content = new MultipartFormDataContent();
-        content.Add(new ByteArrayContent(assetData), "assetData", filename);
+        content.Add(new StreamContent(File.OpenRead(filePath)), "assetData", filename);
         content.Add(new StringContent(fileCreatedAt), "fileCreatedAt");
         content.Add(new StringContent(fileModifiedAt), "fileModifiedAt");
         content.Add(new StringContent("false"), "isFavorite");
@@ -159,13 +159,14 @@ public class ImmichClient : IDisposable
         return await JsonSerializer.DeserializeAsync<JsonElement>(await resp.Content.ReadAsStreamAsync());
     }
 
-    public async Task<byte[]> DownloadAssetAsync(string assetId)
+    public async Task<string> DownloadAssetAsync(string assetId)
     {
         var resp = await _http.GetAsync($"assets/{assetId}/original");
         resp.EnsureSuccessStatusCode();
-        using var ms = new MemoryStream();
-        await resp.Content.CopyToAsync(ms);
-        return ms.ToArray();
+        var tmpFile = Path.GetTempFileName();
+        using (var fs = File.Create(tmpFile))
+            await resp.Content.CopyToAsync(fs);
+        return tmpFile;
     }
 
     public async Task<List<JsonElement>> GetAlbumSharesAsync()

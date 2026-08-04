@@ -58,12 +58,12 @@ public class FlickrClient
         );
     }
 
-    public async Task<string> UploadPhotoAsync(byte[] imageData, string filename, string title, string? description = null)
+    public async Task<string> UploadPhotoAsync(string filePath, string filename, string title, string? description = null)
     {
         using var content = new MultipartFormDataContent();
 
-        var imageContent = new ByteArrayContent(imageData);
-        imageContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+        var imageContent = new StreamContent(File.OpenRead(filePath));
+        imageContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         content.Add(imageContent, "photo", filename);
 
         var oauthParams = new Dictionary<string, string>

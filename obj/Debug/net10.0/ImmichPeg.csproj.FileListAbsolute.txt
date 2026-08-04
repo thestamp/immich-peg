@@ -26,7 +26,7 @@
 /home/stamp/immich-peg/obj/Debug/net10.0/ref/ImmichPeg.dll
 /home/stamp/immich-peg/obj/Debug/net10.0/ImmichPeg.sourcelink.json
 /home/stamp/immich-peg/bin/Debug/net10.0/ImmichPeg.staticwebassets.runtime.json
-/home/stamp/immich-peg/obj/Debug/net10.0/compressed/5u1ht4do53-{0}-z0o4u8it7b-z0o4u8it7b.gz
 /home/stamp/immich-peg/obj/Debug/net10.0/compressed/gf6co3h5k7-{0}-n8otbamtuk-n8otbamtuk.gz
-/home/stamp/immich-peg/obj/Debug/net10.0/compressed/ouoasl66fk-{0}-azvjaa2mip-azvjaa2mip.gz
 /home/stamp/immich-peg/obj/Debug/net10.0/compressed/u5p448rldi-{0}-ogahjvf45k-ogahjvf45k.gz
+/home/stamp/immich-peg/obj/Debug/net10.0/compressed/ouoasl66fk-{0}-mtd393wikh-mtd393wikh.gz
+/home/stamp/immich-peg/obj/Debug/net10.0/compressed/5u1ht4do53-{0}-jdq4lygyme-jdq4lygyme.gz

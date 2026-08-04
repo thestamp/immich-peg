@@ -242,11 +242,12 @@ public class SyncEngine
                 else
                 {
                     var assetId = asset.GetProperty("id").GetString()!;
-                    var assetData = await _main.DownloadAssetAsync(assetId);
+                    var assetFile = await _main.DownloadAssetAsync(assetId);
                     CheckCancelled();
-                    var uploadResult = await _public.UploadAssetAsync(assetData, originalName,
+                    var uploadResult = await _public.UploadAssetAsync(assetFile, originalName,
                         asset.TryGetProperty("fileCreatedAt", out var fca) ? fca.GetString() ?? "" : "",
                         asset.TryGetProperty("fileModifiedAt", out var fma) ? fma.GetString() ?? "" : "");
+                    try { File.Delete(assetFile); } catch { }
                     if (uploadResult.TryGetProperty("id", out var uid))
                     {
                         var newId = uid.GetString()!;
